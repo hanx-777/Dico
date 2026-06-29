@@ -1,0 +1,10 @@
+torch
+transformers
+datasets
+accelerate
+peft
+numpy
+pandas
+tqdm
+matplotlib
+pytest
