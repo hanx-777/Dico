@@ -1,0 +1,39 @@
+inherits: ../base.yaml
+
+experiment_name: tiny_lora
+method: lora
+rank: 2
+
+model:
+  type: tiny
+  name_or_path: tiny
+  hidden_size: 16
+  vocab_size: 512
+
+data:
+  source: tiny
+  train_path: tiny
+  eval_path: tiny
+  max_length: 64
+  train_limit: 4
+  eval_limit: 4
+
+training:
+  max_steps: 2
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  logging_steps: 1
+  eval_steps: 1
+  learning_rate: 1.0e-3
+
+calibration:
+  enabled: false
+  num_samples: 2
+
+dynamic:
+  enabled: false
+
+evaluation:
+  max_batches: 1
+  accuracy_max_samples: 2
+  generation_max_new_tokens: 8

@@ -1,0 +1,17 @@
+inherits: ../base.yaml
+
+experiment_name: dico_dynamic_r4
+method: dico_dynamic
+rank: 4
+
+rank_strategy:
+  init: uniform
+  dynamic: true
+
+dynamic:
+  enabled: true
+  update_ratios: [0.2, 0.4, 0.6]
+  freeze_after_ratio: 0.6
+  move_ratio: 0.20
+  score_smoothing: 1.0e-6
+  allocation_temperature: 1.0

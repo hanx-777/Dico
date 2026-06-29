@@ -1,0 +1,23 @@
+# Python/cache noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS/resource fork noise
+.DS_Store
+._*
+
+# Local runtime caches
+.hf_cache/
+logs/
+nohup.out
+
+# Experiment outputs can include checkpoints and model adapter weights.
+outputs/*
+!outputs/.gitkeep
+
+# Keep vendored local datasets tracked.
+!data/
+!data/**

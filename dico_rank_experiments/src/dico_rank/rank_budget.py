@@ -1,0 +1,352 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Mapping
+
+
+@dataclass(frozen=True)
+class BudgetInfo:
+    budget_mode: str
+    target_budget: int
+    actual_budget: int
+    budget_error: int
+    budget_error_ratio: float
+    total_active_rank: int
+    over_budget: bool = False
+    warning: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "budget_mode": self.budget_mode,
+            "target_budget": self.target_budget,
+            "actual_budget": self.actual_budget,
+            "budget_error": self.budget_error,
+            "budget_error_ratio": self.budget_error_ratio,
+            "total_active_rank": self.total_active_rank,
+            "over_budget": self.over_budget,
+            "warning": self.warning,
+        }
+
+
+@dataclass(frozen=True)
+class RepairResult:
+    allocation: dict[str, int]
+    budget: BudgetInfo
+
+
+@dataclass(frozen=True)
+class WeightedAllocationResult:
+    allocation: dict[str, int]
+    budget: BudgetInfo
+    module_logs: list[dict[str, Any]]
+
+
+def _dim_value(dims: Mapping[str, Any], *names: str) -> int:
+    for name in names:
+        if name in dims:
+            return int(dims[name])
+    raise KeyError(f"Module dims missing one of {names}: {dims}")
+
+
+def module_rank_cost(module_dims: Mapping[str, Any]) -> int:
+    return _dim_value(module_dims, "in_dim", "d_in", "in_features") + _dim_value(
+        module_dims, "out_dim", "d_out", "out_features"
+    )
+
+
+def compute_lora_params_for_module(rank: int, in_dim: int, out_dim: int) -> int:
+    return int(rank) * (int(in_dim) + int(out_dim))
+
+
+def compute_total_lora_params(
+    rank_allocation: Mapping[str, int],
+    module_dims: Mapping[str, Mapping[str, Any]],
+) -> int:
+    total = 0
+    for name, rank in rank_allocation.items():
+        if name not in module_dims:
+            raise KeyError(f"Missing dims for module {name}")
+        total += int(rank) * module_rank_cost(module_dims[name])
+    return int(total)
+
+
+def _warning_for_error(error_ratio: float, threshold: float, over_budget: bool = False) -> str | None:
+    if over_budget:
+        return "actual_active_lora_params exceeds target_budget; comparison is not fair"
+    if error_ratio > threshold:
+        return "budget_error_ratio exceeds 1%; comparison may be less fair"
+    return None
+
+
+def _budget_info(
+    allocation: Mapping[str, int],
+    target_budget: int,
+    module_dims: Mapping[str, Mapping[str, Any]],
+    budget_mode: str = "equal_trainable_params",
+    warning_threshold: float = 0.01,
+) -> BudgetInfo:
+    actual = compute_total_lora_params(allocation, module_dims)
+    error = int(target_budget) - int(actual)
+    over_budget = error < 0
+    ratio = float(abs(error) / target_budget) if target_budget else (1.0 if actual else 0.0)
+    return BudgetInfo(
+        budget_mode=budget_mode,
+        target_budget=int(target_budget),
+        actual_budget=int(actual),
+        budget_error=int(error),
+        budget_error_ratio=ratio,
+        total_active_rank=sum(int(v) for v in allocation.values()),
+        over_budget=over_budget,
+        warning=_warning_for_error(ratio, warning_threshold, over_budget=over_budget),
+    )
+
+
+def get_uniform_budget(
+    rank: int,
+    target_modules: list[str],
+    module_dims: Mapping[str, Mapping[str, Any]],
+    budget_mode: str = "equal_trainable_params",
+    warning_threshold: float = 0.01,
+) -> BudgetInfo:
+    allocation = {name: int(rank) for name in target_modules}
+    target = compute_total_lora_params(allocation, module_dims)
+    return _budget_info(
+        allocation,
+        target_budget=target,
+        module_dims=module_dims,
+        budget_mode=budget_mode,
+        warning_threshold=warning_threshold,
+    )
+
+
+def _clip_allocation(
+    allocation: Mapping[str, int],
+    module_names: list[str],
+    r_min: int,
+    r_max: int,
+) -> dict[str, int]:
+    return {
+        name: max(int(r_min), min(int(r_max), int(allocation.get(name, r_min))))
+        for name in module_names
+    }
+
+
+def repair_allocation_to_budget(
+    rank_allocation: Mapping[str, int],
+    target_budget: int,
+    module_dims: Mapping[str, Mapping[str, Any]],
+    r_min: int = 0,
+    r_max: int | None = None,
+    budget_mode: str = "equal_trainable_params",
+    warning_threshold: float = 0.01,
+) -> RepairResult:
+    """Repair an allocation to the globally closest feasible active-parameter budget.
+
+    When the lower-bound allocation is within target, this bounded integer DP
+    maximizes actual_budget subject to actual_budget <= target_budget. Ties are
+    deterministic: keep closest to the input allocation, then prefer stable
+    module-name order through the fixed module traversal.
+    """
+
+    module_names = list(module_dims.keys())
+    if r_max is None:
+        r_max = max([int(v) for v in rank_allocation.values()] + [int(r_min)])
+    allocation = _clip_allocation(rank_allocation, module_names, int(r_min), int(r_max))
+    costs = {name: module_rank_cost(module_dims[name]) for name in module_names}
+
+    min_allocation = {name: int(r_min) for name in module_names}
+    min_budget = compute_total_lora_params(min_allocation, module_dims)
+    if min_budget > target_budget:
+        info = _budget_info(
+            min_allocation,
+            target_budget,
+            module_dims,
+            budget_mode=budget_mode,
+            warning_threshold=warning_threshold,
+        )
+        return RepairResult(min_allocation, info)
+
+    states: dict[int, tuple[int, tuple[int, ...]]] = {0: (0, tuple())}
+    for name in module_names:
+        cost = costs[name]
+        preferred = allocation[name]
+        next_states: dict[int, tuple[int, tuple[int, ...]]] = {}
+        for used_budget, (distance, ranks) in states.items():
+            for rank in range(int(r_min), int(r_max) + 1):
+                new_budget = used_budget + rank * cost
+                if new_budget > target_budget:
+                    continue
+                new_distance = distance + abs(rank - preferred)
+                new_ranks = ranks + (rank,)
+                existing = next_states.get(new_budget)
+                if existing is None or (new_distance, new_ranks) < (existing[0], existing[1]):
+                    next_states[new_budget] = (new_distance, new_ranks)
+        states = next_states
+        if not states:
+            break
+
+    if not states:
+        info = _budget_info(
+            min_allocation,
+            target_budget,
+            module_dims,
+            budget_mode=budget_mode,
+            warning_threshold=warning_threshold,
+        )
+        return RepairResult(min_allocation, info)
+
+    best_budget = max(states)
+    _distance, best_ranks = states[best_budget]
+    allocation = {name: int(rank) for name, rank in zip(module_names, best_ranks)}
+
+    info = _budget_info(
+        allocation,
+        target_budget,
+        module_dims,
+        budget_mode=budget_mode,
+        warning_threshold=warning_threshold,
+    )
+    return RepairResult(allocation, info)
+
+
+class BudgetManager:
+    def __init__(
+        self,
+        budget_mode: str,
+        module_dims: Mapping[str, Mapping[str, Any]],
+        warning_threshold: float = 0.01,
+    ):
+        self.budget_mode = budget_mode
+        self.module_dims = dict(module_dims)
+        self.warning_threshold = float(warning_threshold)
+
+    def total_params(self, allocation: Mapping[str, int]) -> int:
+        return compute_total_lora_params(allocation, self.module_dims)
+
+    def describe(self, allocation: Mapping[str, int], target_budget: int) -> dict[str, Any]:
+        return _budget_info(
+            allocation,
+            target_budget,
+            self.module_dims,
+            budget_mode=self.budget_mode,
+            warning_threshold=self.warning_threshold,
+        ).to_dict()
+
+    def repair(
+        self,
+        allocation: Mapping[str, int],
+        target_budget: int,
+        r_min: int = 0,
+        r_max: int | None = None,
+    ) -> RepairResult:
+        return repair_allocation_to_budget(
+            allocation,
+            target_budget,
+            self.module_dims,
+            r_min=r_min,
+            r_max=r_max,
+            budget_mode=self.budget_mode,
+            warning_threshold=self.warning_threshold,
+        )
+
+
+def allocate_by_weighted_utility(
+    module_utilities: Mapping[str, float],
+    module_dims: Mapping[str, Mapping[str, Any]],
+    total_rank_budget: int,
+    target_budget: int,
+    r_min: int,
+    r_max: int,
+    use_cost_aware: bool = True,
+    budget_mode: str = "equal_trainable_params",
+    warning_threshold: float = 0.01,
+) -> WeightedAllocationResult:
+    """Allocate integer ranks from continuous module utilities.
+
+    The conversion uses cost-aware scores, continuous ranks, floor + largest
+    remainder, a greedy budget-fill pass, then final active-parameter repair.
+    """
+
+    module_names = list(module_dims.keys())
+    costs = {name: module_rank_cost(module_dims[name]) for name in module_names}
+    utilities = {name: max(0.0, float(module_utilities.get(name, 0.0))) for name in module_names}
+    scores = {
+        name: (utilities[name] / max(costs[name], 1) if use_cost_aware else utilities[name])
+        for name in module_names
+    }
+    score_sum = sum(scores.values())
+    if score_sum <= 0:
+        scores = {name: 1.0 / max(1, len(module_names)) for name in module_names}
+        score_sum = sum(scores.values())
+
+    total_rank_budget = max(int(total_rank_budget), int(r_min) * len(module_names))
+    continuous = {name: total_rank_budget * scores[name] / score_sum for name in module_names}
+    allocation = {
+        name: max(int(r_min), min(int(r_max), int(continuous[name] // 1)))
+        for name in module_names
+    }
+    desired_total = min(int(total_rank_budget), int(r_max) * len(module_names))
+    current_total = sum(allocation.values())
+    remainders = sorted(
+        module_names,
+        key=lambda name: (continuous[name] - int(continuous[name]), scores[name]),
+        reverse=True,
+    )
+    while current_total < desired_total:
+        changed = False
+        for name in remainders:
+            if current_total >= desired_total:
+                break
+            if allocation[name] < r_max:
+                allocation[name] += 1
+                current_total += 1
+                changed = True
+        if not changed:
+            break
+
+    # Greedily fill any remaining active-parameter budget using marginal utility per cost.
+    while True:
+        actual = compute_total_lora_params(allocation, module_dims)
+        remaining = int(target_budget) - actual
+        candidates = [
+            name
+            for name in module_names
+            if allocation[name] < r_max and costs[name] <= remaining
+        ]
+        if not candidates:
+            break
+        best = max(
+            candidates,
+            key=lambda name: (
+                scores[name] / ((allocation[name] + 1) ** 0.5),
+                utilities[name],
+                -costs[name],
+            ),
+        )
+        allocation[best] += 1
+
+    repaired = repair_allocation_to_budget(
+        allocation,
+        int(target_budget),
+        module_dims,
+        r_min=int(r_min),
+        r_max=int(r_max),
+        budget_mode=budget_mode,
+        warning_threshold=warning_threshold,
+    )
+    module_logs = [
+        {
+            "module_name": name,
+            "module_utility": utilities[name],
+            "rank_cost": costs[name],
+            "cost_aware_score": scores[name],
+            "continuous_rank": continuous[name],
+            "final_rank": repaired.allocation[name],
+        }
+        for name in module_names
+    ]
+    return WeightedAllocationResult(
+        allocation=repaired.allocation,
+        budget=repaired.budget,
+        module_logs=module_logs,
+    )

@@ -1,0 +1,12 @@
+inherits: ../base.yaml
+
+experiment_name: lora_r8
+method: lora
+rank: 8
+
+rank_strategy:
+  init: uniform
+  dynamic: false
+
+dynamic:
+  enabled: false
