@@ -1,0 +1,105 @@
+project:
+  name: dico_rank_experiments
+  output_dir: outputs
+
+seed: 42
+experiment_name: base
+method: lora
+rank: 4
+
+model:
+  name_or_path: /ai/lxw/lxw/Qwen3-8B
+  torch_dtype: bfloat16
+  device_map: auto
+  load_in_8bit: false
+  load_in_4bit: false
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_use_double_quant: true
+
+data:
+  dataset_name: openai/gsm8k
+  dataset_config: main
+  train_path: data/gsm8k/main/train.jsonl
+  eval_path: data/gsm8k/main/test.jsonl
+  max_length: 512
+  train_limit: null
+  eval_limit: null
+  num_workers: 4
+
+training:
+  max_steps: 1000
+  batch_size: 8
+  gradient_accumulation_steps: 1
+  learning_rate: 2.0e-4
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  logging_steps: 10
+  eval_steps: 100
+  save_steps: 500
+  gradient_checkpointing: true
+
+lora:
+  alpha: 16
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  bias: none
+  max_rank_multiplier: 2
+
+budget:
+  mode: equal_trainable_params
+  warning_threshold: 0.01
+
+calibration:
+  enabled: true
+  num_samples: 128
+  batch_size: 8
+  seed: 42
+  save_dir: outputs/preallocations
+
+preallocation:
+  atom_mode: svd
+  fallback_atom_mode: module_proxy
+  aggregation_mode: weighted_topk
+  weighted_topk_k: auto
+  atom_weight_normalization: none
+  use_cost_aware_allocation: true
+  atom_utility_floor: 0.0
+  score_type: coverage
+  coverage_lambda: 0.5
+  r_min: 0
+  r_max_multiplier: 2
+  save_atom_logs: true
+
+dynamic:
+  enabled: false
+  update_ratios: [0.2, 0.4, 0.6]
+  freeze_after_ratio: 0.6
+  move_ratio: 0.2
+  score_ema_decay: 0.9
+  grad_weight: 0.5
+  update_weight: 0.5
+  score_smoothing: 1.0e-6
+  allocation_temperature: 1.0
+  r_min: 0
+  r_max_multiplier: 2
+
+evaluation:
+  metric: gsm8k_accuracy
+  protocol: internal_zero_shot
+  prompt_style: sft_cot_hash
+  answer_extraction: strict_then_flexible
+  max_batches: 4
+  compute_accuracy: true
+  accuracy_during_training: false
+  accuracy_max_samples: null
+  generation_max_new_tokens: 256
+  stop_sequences:
+    - "\nQuestion:"
+    - "<|im_end|>"
