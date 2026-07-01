@@ -1,0 +1,17 @@
+inherits: ../base.yaml
+
+experiment_name: dico_pre_r4
+method: dico_pre
+rank: 4
+
+rank_strategy:
+  init: dico_pre
+  dynamic: false
+
+preallocation:
+  aggregation_mode: weighted_log
+  atom_weight_normalization: none
+  use_cost_aware_allocation: true
+
+dynamic:
+  enabled: false
