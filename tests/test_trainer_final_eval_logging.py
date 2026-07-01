@@ -4,8 +4,9 @@ from pathlib import Path
 import torch
 
 from dico_rank.config import load_yaml
+from dico_rank.data import SFTCollator
 import dico_rank.trainer as trainer_module
-from dico_rank.trainer import train
+from dico_rank.trainer import train, _build_calibration_batches
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,3 +104,35 @@ def test_pre_training_releases_calibration_batches(monkeypatch, tmp_path: Path):
     train(config)
 
     assert calibration_batches == []
+
+
+def _calibration_ids(records: list[dict], calibration_cfg: dict) -> list[int]:
+    collator = SFTCollator(pad_token_id=0)
+    batches = _build_calibration_batches(records, collator, torch.device("cpu"), calibration_cfg)
+    return [int(batch["input_ids"][0, 0].item()) for batch in batches]
+
+
+def test_calibration_sampling_keeps_prefix_by_default():
+    records = [
+        {"input_ids": [idx], "attention_mask": [1], "labels": [idx]}
+        for idx in range(10)
+    ]
+
+    selected = _calibration_ids(records, {"num_samples": 4, "batch_size": 1, "seed": 1})
+
+    assert selected == [0, 1, 2, 3]
+
+
+def test_calibration_sampling_can_shuffle_with_seed():
+    records = [
+        {"input_ids": [idx], "attention_mask": [1], "labels": [idx]}
+        for idx in range(10)
+    ]
+
+    first = _calibration_ids(records, {"num_samples": 4, "batch_size": 1, "seed": 7, "shuffle": True})
+    second = _calibration_ids(records, {"num_samples": 4, "batch_size": 1, "seed": 7, "shuffle": True})
+    different = _calibration_ids(records, {"num_samples": 4, "batch_size": 1, "seed": 8, "shuffle": True})
+
+    assert first == second
+    assert first != [0, 1, 2, 3]
+    assert first != different

@@ -61,6 +61,7 @@ calibration:
   num_samples: 128
   batch_size: 4
   seed: 42
+  shuffle: false
   save_dir: outputs/preallocations
 
 preallocation:
@@ -72,6 +73,9 @@ preallocation:
   top_k_atoms: 8
   sketch_dim: 32
   sketch_oversample: 24
+  compute_device: auto
+  module_chunk_size: 32
+  progress_logging_steps: 1
   sketch_seed: 42
   sketch_dtype: float32
   answer_only: true

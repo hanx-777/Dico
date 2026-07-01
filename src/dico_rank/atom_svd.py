@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import gc
 import hashlib
+import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Any, Mapping
 
 import torch
 
 from dico_rank.rank_budget import module_rank_cost
 from dico_rank.sketch import append_gram_schmidt, make_random_projection, orthonormal_basis
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,6 +70,22 @@ class SvdAtomRecord:
             "profile_std": self.profile_std,
             "profile_hash": self.profile_hash,
         }
+
+
+@dataclass
+class TokenFactorBatch:
+    samples: list[tuple[torch.Tensor, torch.Tensor]]
+    activation_dim: int
+    grad_dim: int
+
+    @property
+    def batch_size(self) -> int:
+        return len(self.samples)
+
+    def token_slices(self, sample_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        if not 0 <= int(sample_idx) < self.batch_size:
+            raise IndexError(f"sample_idx out of range: {sample_idx}")
+        return self.samples[int(sample_idx)]
 
 
 def _as_float_tensor(value: torch.Tensor) -> torch.Tensor:
@@ -287,63 +309,253 @@ def _answer_mask(labels: torch.Tensor, seq_len: int, answer_only: bool) -> torch
     return shifted[:, :seq_len]
 
 
+def _release_torch_memory() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def _module_chunks(module_names: list[str], module_chunk_size: int | None) -> list[list[str]]:
+    if not module_names:
+        return []
+    chunk_size = int(module_chunk_size or len(module_names))
+    if chunk_size <= 0:
+        chunk_size = len(module_names)
+    return [module_names[start : start + chunk_size] for start in range(0, len(module_names), chunk_size)]
+
+
+def _filter_token_factors(
+    activation: torch.Tensor,
+    grad: torch.Tensor,
+    mask: torch.Tensor,
+) -> TokenFactorBatch:
+    activation_dim = int(activation.shape[-1])
+    grad_dim = int(grad.shape[-1])
+    samples: list[tuple[torch.Tensor, torch.Tensor]] = []
+    for sample_idx in range(int(activation.shape[0])):
+        token_mask = mask[sample_idx].bool()
+        if bool(token_mask.any()):
+            a_tokens = activation[sample_idx, token_mask].detach().float().cpu()
+            g_tokens = grad[sample_idx, token_mask].detach().float().cpu()
+        else:
+            a_tokens = torch.empty(0, activation_dim, dtype=torch.float32)
+            g_tokens = torch.empty(0, grad_dim, dtype=torch.float32)
+        samples.append((a_tokens, g_tokens))
+    return TokenFactorBatch(samples=samples, activation_dim=activation_dim, grad_dim=grad_dim)
+
+
+def _resolve_compute_device(
+    pre_cfg: Mapping[str, Any],
+    calibration_batches: list[Mapping[str, torch.Tensor]],
+) -> torch.device:
+    requested = str(pre_cfg.get("compute_device", "auto")).lower()
+    if requested in {"auto", "default", ""}:
+        if calibration_batches:
+            device = calibration_batches[0]["input_ids"].device
+            if device.type == "cuda" and torch.cuda.is_available():
+                return device
+        return torch.device("cpu")
+    if requested == "cuda" and not torch.cuda.is_available():
+        LOGGER.warning("preallocation.compute_device=cuda requested but CUDA is unavailable; falling back to CPU")
+        return torch.device("cpu")
+    return torch.device(requested)
+
+
+def _iter_masked_token_factors(
+    activation: torch.Tensor,
+    grad: torch.Tensor,
+    labels: torch.Tensor | None,
+    answer_only: bool,
+    compute_device: torch.device,
+):
+    if labels is not None:
+        mask = _answer_mask(labels, activation.shape[1], answer_only).to(device=activation.device)
+    else:
+        mask = torch.ones(activation.shape[:2], dtype=torch.bool, device=activation.device)
+    for sample_idx in range(int(activation.shape[0])):
+        token_mask = mask[sample_idx].bool()
+        if bool(token_mask.any()):
+            a_tokens = activation[sample_idx, token_mask].detach().to(device=compute_device, dtype=torch.float32)
+            g_tokens = grad[sample_idx, token_mask].detach().to(device=compute_device, dtype=torch.float32)
+        else:
+            a_tokens = torch.empty(0, int(activation.shape[-1]), dtype=torch.float32, device=compute_device)
+            g_tokens = torch.empty(0, int(grad.shape[-1]), dtype=torch.float32, device=compute_device)
+        yield sample_idx, a_tokens, g_tokens
+
+
 def _run_backward_and_collect(
     model: Any,
     modules: Mapping[str, Any],
     module_names: list[str],
     batch: Mapping[str, torch.Tensor],
     answer_only: bool,
-) -> dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-    records: dict[str, dict[str, torch.Tensor]] = {}
-    handles = []
-
-    def make_hook(name: str):
-        def hook(_module, inputs, output):
-            if torch.is_tensor(output) and output.requires_grad:
-                output.retain_grad()
-                records[name] = {"activation": inputs[0].detach(), "output": output}
-
-        return hook
-
-    for name in module_names:
-        handles.append(modules[name].register_forward_hook(make_hook(name)))
-    outputs = None
+    module_chunk_size: int | None = None,
+    pass_name: str | None = None,
+    batch_index: int | None = None,
+    total_batches: int | None = None,
+    progress_logging_steps: int = 1,
+) -> dict[str, TokenFactorBatch]:
+    chunks = _module_chunks(module_names, module_chunk_size)
+    collected: dict[str, TokenFactorBatch] = {}
+    was_training = bool(getattr(model, "training", False))
+    model.eval()
     try:
-        model.zero_grad(set_to_none=True)
-        outputs = model(**batch)
-        if getattr(outputs, "loss", None) is None:
-            return {}
-        outputs.loss.backward()
-        collected = {}
-        labels = batch.get("labels")
-        for name in module_names:
-            row = records.get(name)
-            if not row or row["output"].grad is None:
-                continue
-            activation = row["activation"].detach().float().cpu()
-            grad = row["output"].grad.detach().float().cpu()
-            mask = _answer_mask(labels.detach().cpu(), activation.shape[1], answer_only) if labels is not None else torch.ones(activation.shape[:2], dtype=torch.bool)
-            collected[name] = (activation, grad, mask.cpu())
+        for chunk_index, chunk_names in enumerate(chunks, start=1):
+            records: dict[str, dict[str, torch.Tensor]] = {}
+            handles = []
+
+            def make_hook(name: str):
+                def hook(_module, inputs, output):
+                    if torch.is_tensor(output) and output.requires_grad:
+                        output.retain_grad()
+                        records[name] = {"activation": inputs[0].detach(), "output": output}
+
+                return hook
+
+            for name in chunk_names:
+                handles.append(modules[name].register_forward_hook(make_hook(name)))
+            outputs = None
+            try:
+                model.zero_grad(set_to_none=True)
+                outputs = model(**batch)
+                if getattr(outputs, "loss", None) is None:
+                    continue
+                outputs.loss.backward()
+                labels = batch.get("labels")
+                for name in chunk_names:
+                    row = records.get(name)
+                    if not row or row["output"].grad is None:
+                        continue
+                    activation = row["activation"]
+                    grad = row["output"].grad
+                    if labels is not None:
+                        mask = _answer_mask(labels, activation.shape[1], answer_only).to(device=activation.device)
+                    else:
+                        mask = torch.ones(activation.shape[:2], dtype=torch.bool, device=activation.device)
+                    collected[name] = _filter_token_factors(activation, grad, mask)
+            finally:
+                for handle in handles:
+                    handle.remove()
+                records.clear()
+                if outputs is not None:
+                    del outputs
+                model.zero_grad(set_to_none=True)
+                _release_torch_memory()
+
+            interval = max(1, int(progress_logging_steps))
+            should_log = (
+                pass_name is not None
+                and (
+                    chunk_index == 1
+                    or chunk_index == len(chunks)
+                    or chunk_index % interval == 0
+                )
+            )
+            if should_log:
+                LOGGER.info(
+                    "svd_preallocation_progress pass=%s batch=%s/%s chunk=%d/%d modules=%d",
+                    pass_name,
+                    batch_index if batch_index is not None else "?",
+                    total_batches if total_batches is not None else "?",
+                    chunk_index,
+                    len(chunks),
+                    len(chunk_names),
+                )
         return collected
     finally:
-        for handle in handles:
-            handle.remove()
-        records.clear()
-        if outputs is not None:
-            del outputs
-        model.zero_grad(set_to_none=True)
+        if was_training:
+            model.train()
 
 
-def _token_slices(
-    activation: torch.Tensor,
-    grad: torch.Tensor,
-    mask: torch.Tensor,
-    sample_idx: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    token_mask = mask[sample_idx].bool()
-    if not bool(token_mask.any()):
-        return torch.empty(0, activation.shape[-1]), torch.empty(0, grad.shape[-1])
-    return activation[sample_idx, token_mask], grad[sample_idx, token_mask]
+def _run_backward_and_stream(
+    model: Any,
+    modules: Mapping[str, Any],
+    module_names: list[str],
+    batch: Mapping[str, torch.Tensor],
+    answer_only: bool,
+    compute_device: torch.device,
+    handle_sample: Any,
+    module_chunk_size: int | None = None,
+    pass_name: str | None = None,
+    batch_index: int | None = None,
+    total_batches: int | None = None,
+    progress_logging_steps: int = 1,
+) -> None:
+    chunks = _module_chunks(module_names, module_chunk_size)
+    was_training = bool(getattr(model, "training", False))
+    model.eval()
+    try:
+        for chunk_index, chunk_names in enumerate(chunks, start=1):
+            records: dict[str, dict[str, torch.Tensor]] = {}
+            handles = []
+
+            def make_hook(name: str):
+                def hook(_module, inputs, output):
+                    if torch.is_tensor(output) and output.requires_grad:
+                        output.retain_grad()
+                        records[name] = {"activation": inputs[0].detach(), "output": output}
+
+                return hook
+
+            for name in chunk_names:
+                handles.append(modules[name].register_forward_hook(make_hook(name)))
+            outputs = None
+            try:
+                model.zero_grad(set_to_none=True)
+                outputs = model(**batch)
+                if getattr(outputs, "loss", None) is None:
+                    continue
+                outputs.loss.backward()
+                labels = batch.get("labels")
+                for name in chunk_names:
+                    row = records.get(name)
+                    if not row or row["output"].grad is None:
+                        continue
+                    activation = row["activation"]
+                    grad = row["output"].grad
+                    for sample_idx, a_tokens, g_tokens in _iter_masked_token_factors(
+                        activation,
+                        grad,
+                        labels,
+                        answer_only,
+                        compute_device,
+                    ):
+                        handle_sample(name, sample_idx, a_tokens, g_tokens)
+            finally:
+                for handle in handles:
+                    handle.remove()
+                records.clear()
+                if outputs is not None:
+                    del outputs
+                model.zero_grad(set_to_none=True)
+                _release_torch_memory()
+
+            interval = max(1, int(progress_logging_steps))
+            should_log = (
+                pass_name is not None
+                and (
+                    chunk_index == 1
+                    or chunk_index == len(chunks)
+                    or chunk_index % interval == 0
+                )
+            )
+            if should_log:
+                LOGGER.info(
+                    "svd_preallocation_progress pass=%s batch=%s/%s chunk=%d/%d modules=%d",
+                    pass_name,
+                    batch_index if batch_index is not None else "?",
+                    total_batches if total_batches is not None else "?",
+                    chunk_index,
+                    len(chunks),
+                    len(chunk_names),
+                )
+    finally:
+        if was_training:
+            model.train()
+
+
+def _token_slices(factors: TokenFactorBatch, sample_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    return factors.token_slices(sample_idx)
 
 
 def _profile_hash(profile: torch.Tensor) -> str:
@@ -376,6 +588,11 @@ def extract_svd_atom_records(
     sketch_dtype = torch.float32
     answer_only = bool(pre_cfg.get("answer_only", True))
     profile_norm_mode = str(pre_cfg.get("profile_norm_mode", "streaming_estimate"))
+    module_chunk_size = int(pre_cfg.get("module_chunk_size", len(module_names)))
+    progress_logging_steps = int(pre_cfg.get("progress_logging_steps", 1))
+    module_chunks = _module_chunks(module_names, module_chunk_size)
+    compute_device = _resolve_compute_device(pre_cfg, calibration_batches)
+    timings: dict[str, float] = {}
 
     omegas = {}
     y_states = {}
@@ -384,45 +601,81 @@ def extract_svd_atom_records(
         in_dim = int(dims["in_dim"])
         out_dim = int(dims["out_dim"])
         s = min(sketch_dim, in_dim)
-        omegas[name] = make_random_projection(in_dim, s, sketch_seed + offset, dtype=sketch_dtype)
-        y_states[name] = torch.zeros(out_dim, s, dtype=torch.float32)
+        omegas[name] = make_random_projection(in_dim, s, sketch_seed + offset, dtype=sketch_dtype, device=compute_device)
+        y_states[name] = torch.zeros(out_dim, s, dtype=torch.float32, device=compute_device)
 
-    for batch in calibration_batches:
-        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
-        batch_size = next(iter(collected.values()))[0].shape[0] if collected else 0
-        for name, (activation, grad, mask) in collected.items():
+    LOGGER.info(
+        "svd_preallocation_start batches=%d modules=%d module_chunk_size=%d module_chunks=%d top_k=%d sketch_dim=%d compute_device=%s",
+        len(calibration_batches),
+        len(module_names),
+        module_chunk_size,
+        len(module_chunks),
+        top_k,
+        sketch_dim,
+        compute_device,
+    )
+
+    started_at = time.perf_counter()
+    for batch_index, batch in enumerate(calibration_batches, start=1):
+        def sketch_update(name: str, _sample_idx: int, a_tokens: torch.Tensor, g_tokens: torch.Tensor) -> None:
+            if a_tokens.numel() == 0:
+                return
             omega = omegas[name]
-            for sample_idx in range(batch_size):
-                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
-                if a_tokens.numel() == 0:
-                    continue
-                y_states[name] += g_tokens.T @ (a_tokens @ omega) / max(a_tokens.shape[0], 1)
+            y_states[name] += g_tokens.T @ (a_tokens @ omega) / max(a_tokens.shape[0], 1)
 
+        _run_backward_and_stream(
+            model,
+            modules,
+            module_names,
+            batch,
+            answer_only,
+            compute_device,
+            sketch_update,
+            module_chunk_size=module_chunk_size,
+            pass_name="sketch_pass",
+            batch_index=batch_index,
+            total_batches=len(calibration_batches),
+            progress_logging_steps=progress_logging_steps,
+        )
+    timings["sketch_pass_sec"] = time.perf_counter() - started_at
+
+    started_at = time.perf_counter()
     q_states = {name: orthonormal_basis(y_states[name]) for name in module_names}
     b_states = {
-        name: torch.zeros(q_states[name].shape[1], int(module_dims[name]["in_dim"]), dtype=torch.float32)
+        name: torch.zeros(q_states[name].shape[1], int(module_dims[name]["in_dim"]), dtype=torch.float32, device=compute_device)
         for name in module_names
     }
-    for batch in calibration_batches:
-        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
-        batch_size = next(iter(collected.values()))[0].shape[0] if collected else 0
-        for name, (activation, grad, mask) in collected.items():
+    for batch_index, batch in enumerate(calibration_batches, start=1):
+        def basis_update(name: str, _sample_idx: int, a_tokens: torch.Tensor, g_tokens: torch.Tensor) -> None:
             q = q_states[name]
-            if q.numel() == 0:
-                continue
-            for sample_idx in range(batch_size):
-                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
-                if a_tokens.numel() == 0:
-                    continue
-                b_states[name] += (g_tokens @ q).T @ a_tokens / max(a_tokens.shape[0], 1)
+            if q.numel() == 0 or a_tokens.numel() == 0:
+                return
+            b_states[name] += (g_tokens @ q).T @ a_tokens / max(a_tokens.shape[0], 1)
 
+        _run_backward_and_stream(
+            model,
+            modules,
+            module_names,
+            batch,
+            answer_only,
+            compute_device,
+            basis_update,
+            module_chunk_size=module_chunk_size,
+            pass_name="basis_pass",
+            batch_index=batch_index,
+            total_batches=len(calibration_batches),
+            progress_logging_steps=progress_logging_steps,
+        )
+    timings["basis_pass_sec"] = time.perf_counter() - started_at
+
+    started_at = time.perf_counter()
     atoms: list[SvdAtomRecord] = []
     atoms_by_module: dict[str, list[SvdAtomRecord]] = {}
     for name in module_names:
         b_matrix = b_states[name]
         q = q_states[name]
         if b_matrix.numel() == 0 or q.numel() == 0:
-            response = torch.zeros(int(module_dims[name]["out_dim"]), int(module_dims[name]["in_dim"]))
+            response = torch.zeros(int(module_dims[name]["out_dim"]), int(module_dims[name]["in_dim"]), device=compute_device)
             module_atoms = extract_svd_atoms_from_response_matrix(response, top_k, name, module_rank_cost(module_dims[name]))
         else:
             u_tilde, singular, vh = torch.linalg.svd(b_matrix, full_matrices=False)
@@ -450,34 +703,55 @@ def extract_svd_atom_records(
                 )
         atoms_by_module[name] = module_atoms
         atoms.extend(module_atoms)
+    y_states.clear()
+    q_states.clear()
+    b_states.clear()
+    _release_torch_memory()
 
     total_samples = sum(int(batch["input_ids"].shape[0]) for batch in calibration_batches)
-    alpha = torch.zeros(total_samples, len(atoms), dtype=torch.float32)
-    denominators = torch.zeros(total_samples, dtype=torch.float32)
-    module_norms = {name: torch.zeros(total_samples, dtype=torch.float32) for name in module_names}
+    alpha = torch.zeros(total_samples, len(atoms), dtype=torch.float32, device=compute_device)
+    denominators = torch.zeros(total_samples, dtype=torch.float32, device=compute_device)
+    module_norms = {name: torch.zeros(total_samples, dtype=torch.float32, device=compute_device) for name in module_names}
     atom_offsets = {(atom.module_name, atom.atom_index): idx for idx, atom in enumerate(atoms)}
+    atom_factor_cache: dict[str, tuple[torch.Tensor, torch.Tensor, list[int]]] = {}
+    for name, module_atoms in atoms_by_module.items():
+        if not module_atoms:
+            continue
+        u_stack = torch.stack([atom.u for atom in module_atoms], dim=1).to(device=compute_device, dtype=torch.float32)
+        v_stack = torch.stack([atom.v for atom in module_atoms], dim=1).to(device=compute_device, dtype=torch.float32)
+        offsets = [atom_offsets[(atom.module_name, atom.atom_index)] for atom in module_atoms]
+        atom_factor_cache[name] = (u_stack, v_stack, offsets)
 
     sample_base = 0
-    for batch in calibration_batches:
-        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
-        batch_size = int(batch["input_ids"].shape[0])
-        for sample_idx in range(batch_size):
+    for batch_index, batch in enumerate(calibration_batches, start=1):
+        def profile_update(name: str, sample_idx: int, a_tokens: torch.Tensor, g_tokens: torch.Tensor) -> None:
             global_idx = sample_base + sample_idx
-            sample_norm_sum = 0.0
-            for name, (activation, grad, mask) in collected.items():
-                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
-                norm = sample_response_norm_from_token_factors(a_tokens, g_tokens, mode=profile_norm_mode)
-                module_norms[name][global_idx] = norm
-                sample_norm_sum += float(norm.item())
-                for atom in atoms_by_module.get(name, []):
-                    alpha[global_idx, atom_offsets[(name, atom.atom_index)]] = signed_projection_from_token_factors(
-                        a_tokens,
-                        g_tokens,
-                        atom.u,
-                        atom.v,
-                    )
-            denominators[global_idx] = sample_norm_sum
+            norm = sample_response_norm_from_token_factors(a_tokens, g_tokens, mode=profile_norm_mode).to(device=compute_device)
+            module_norms[name][global_idx] = norm
+            denominators[global_idx] += norm
+            if a_tokens.numel() == 0 or name not in atom_factor_cache:
+                return
+            u_stack, v_stack, offsets = atom_factor_cache[name]
+            projections = torch.mean((g_tokens @ u_stack) * (a_tokens @ v_stack), dim=0)
+            alpha[global_idx, offsets] = projections
+
+        _run_backward_and_stream(
+            model,
+            modules,
+            module_names,
+            batch,
+            answer_only,
+            compute_device,
+            profile_update,
+            module_chunk_size=module_chunk_size,
+            pass_name="profile_pass",
+            batch_index=batch_index,
+            total_batches=len(calibration_batches),
+            progress_logging_steps=progress_logging_steps,
+        )
+        batch_size = int(batch["input_ids"].shape[0])
         sample_base += batch_size
+    timings["profile_pass_sec"] = time.perf_counter() - started_at
 
     profiles = normalize_signed_profiles(alpha, denominators, mode=profile_norm_mode)
     profile_path = Path(profile_path)
@@ -532,8 +806,12 @@ def extract_svd_atom_records(
         "sketch_dim": sketch_dim,
         "sketch_seed": sketch_seed,
         "sketch_dtype": str(pre_cfg.get("sketch_dtype", "float32")),
+        "compute_device": str(compute_device),
+        "module_chunk_size": module_chunk_size,
+        "num_module_chunks": len(module_chunks),
         "answer_only": answer_only,
         "profile_norm_mode": profile_norm_mode,
+        **timings,
         "evidence_selection": {
             "max_selected_atoms": max_selected,
             "sparse_stop_by_coverage": bool(evidence_cfg.get("sparse_stop_by_coverage", True)),

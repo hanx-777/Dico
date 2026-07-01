@@ -23,6 +23,10 @@ def test_base_config_uses_project_local_gsm8k_paths():
     assert cfg["training"]["batch_size"] == 4
     assert cfg["training"]["gradient_accumulation_steps"] == 2
     assert cfg["calibration"]["batch_size"] == 4
+    assert cfg["calibration"]["shuffle"] is False
+    assert cfg["preallocation"]["compute_device"] == "auto"
+    assert cfg["preallocation"]["module_chunk_size"] == 32
+    assert cfg["preallocation"]["progress_logging_steps"] == 1
     assert (root / cfg["data"]["train_path"]).exists()
     assert (root / cfg["data"]["eval_path"]).exists()
 

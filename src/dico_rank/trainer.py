@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import random
 import time
 from pathlib import Path
 from typing import Any
@@ -63,7 +64,14 @@ def _build_calibration_batches(
 ) -> list[dict[str, torch.Tensor]]:
     calibration_limit = int(calibration_cfg.get("num_samples", min(8, len(train_records))))
     calibration_batch_size = max(1, int(calibration_cfg.get("batch_size", 1)))
-    selected = train_records[:calibration_limit]
+    if calibration_limit >= len(train_records):
+        selected = list(train_records)
+    elif bool(calibration_cfg.get("shuffle", False)):
+        rng = random.Random(int(calibration_cfg.get("seed", 42)))
+        indices = rng.sample(range(len(train_records)), calibration_limit)
+        selected = [train_records[index] for index in indices]
+    else:
+        selected = train_records[:calibration_limit]
     return [
         _move_batch(collator(selected[start : start + calibration_batch_size]), input_device)
         for start in range(0, len(selected), calibration_batch_size)
@@ -236,6 +244,15 @@ def build_preallocation_cache(config: dict[str, Any]) -> dict[str, Any]:
         warning_threshold=float(budget_cfg.get("warning_threshold", 0.01)),
     )
     try:
+        pre_cfg = config.get("preallocation", {})
+        LOGGER.info(
+            "preallocation_start experiment=%s atom_mode=%s num_batches=%d num_modules=%d module_chunk_size=%s",
+            config.get("experiment_name", f"{config.get('method')}_r{config.get('rank')}"),
+            pre_cfg.get("atom_mode", pre_cfg.get("fallback_atom_mode", "module_proxy")),
+            len(calibration_batches),
+            len(module_names),
+            pre_cfg.get("module_chunk_size", len(module_names)),
+        )
         rank_allocation, metadata = load_or_build_preallocation(
             config,
             model,
@@ -335,6 +352,15 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
             config.get("calibration", {}),
         )
         try:
+            pre_cfg = config.get("preallocation", {})
+            LOGGER.info(
+                "preallocation_start experiment=%s atom_mode=%s num_batches=%d num_modules=%d module_chunk_size=%s",
+                experiment_name,
+                pre_cfg.get("atom_mode", pre_cfg.get("fallback_atom_mode", "module_proxy")),
+                len(calibration_batches),
+                len(module_names),
+                pre_cfg.get("module_chunk_size", len(module_names)),
+            )
             initial_allocation, preallocation_metadata = load_or_build_preallocation(
                 config,
                 model,
