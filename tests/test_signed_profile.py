@@ -1,8 +1,10 @@
 import torch
+from torch import nn
 
 from dico_rank.atom_svd import (
     gradient_conflict,
     normalize_signed_profiles,
+    _run_backward_and_collect,
     sample_response_norm_from_token_factors,
     signed_projection_from_token_factors,
 )
@@ -51,3 +53,48 @@ def test_sample_response_norm_exact_small_matches_outer_product_average():
     norm = sample_response_norm_from_token_factors(activations, gradients, mode="exact_small")
 
     assert torch.allclose(norm, torch.linalg.norm(explicit_response))
+
+
+class TinyTokenLinear(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.proj = nn.Linear(2, 3, bias=False)
+
+    def forward(self, input_ids, attention_mask=None, labels=None):
+        del attention_mask, labels
+        x = torch.nn.functional.one_hot(input_ids, num_classes=2).float()
+        y = self.proj(x)
+        return type("Output", (), {"loss": y.sum(), "logits": y})()
+
+
+def test_backward_collect_applies_answer_mask_before_returning_token_factors():
+    model = TinyTokenLinear()
+    modules = dict(model.named_modules())
+    batch = {
+        "input_ids": torch.tensor([[0, 1, 0, 1]]),
+        "labels": torch.tensor([[-100, -100, 5, 5]]),
+    }
+
+    answer_only = _run_backward_and_collect(
+        model,
+        modules,
+        ["proj"],
+        batch,
+        answer_only=True,
+        module_chunk_size=1,
+    )
+    full = _run_backward_and_collect(
+        model,
+        modules,
+        ["proj"],
+        batch,
+        answer_only=False,
+        module_chunk_size=1,
+    )
+
+    answer_a, answer_g = answer_only["proj"].token_slices(0)
+    full_a, full_g = full["proj"].token_slices(0)
+    assert answer_a.shape == (2, 2)
+    assert answer_g.shape == (2, 3)
+    assert full_a.shape == (4, 2)
+    assert full_g.shape == (4, 3)
