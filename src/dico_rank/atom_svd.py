@@ -1,0 +1,543 @@
+from __future__ import annotations
+
+import hashlib
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping
+
+import torch
+
+from dico_rank.rank_budget import module_rank_cost
+from dico_rank.sketch import append_gram_schmidt, make_random_projection, orthonormal_basis
+
+
+@dataclass
+class SvdAtomRecord:
+    module_name: str
+    atom_index: int
+    cost: int
+    singular_value: float
+    spectral_ratio: float
+    profile: torch.Tensor | None
+    conflict: float
+    coverage: float
+    lambda_cov: float
+    utility: float
+    module_importance: float
+    selected: bool = False
+    u: torch.Tensor | None = None
+    v: torch.Tensor | None = None
+    atom_mode: str = "svd"
+    prefix_legal: bool = False
+    importance_mode: str = "streaming_estimate"
+    profile_norm_mode: str = "streaming_estimate"
+    profile_path: str | None = None
+    profile_index: int | None = None
+    profile_norm: float | None = None
+    profile_mean: float | None = None
+    profile_std: float | None = None
+    profile_hash: str | None = None
+
+    def to_log_dict(self) -> dict[str, Any]:
+        return {
+            "module_name": self.module_name,
+            "atom_id": self.atom_index,
+            "atom_index": self.atom_index,
+            "cost": self.cost,
+            "singular_value": self.singular_value,
+            "spectral_ratio": self.spectral_ratio,
+            "conflict": self.conflict,
+            "coverage": self.coverage,
+            "lambda_cov": self.lambda_cov,
+            "utility": self.utility,
+            "module_importance": self.module_importance,
+            "selected": self.selected,
+            "atom_mode": self.atom_mode,
+            "prefix_legal": self.prefix_legal,
+            "importance_mode": self.importance_mode,
+            "profile_norm_mode": self.profile_norm_mode,
+            "profile_path": self.profile_path,
+            "profile_index": self.profile_index,
+            "profile_norm": self.profile_norm,
+            "profile_mean": self.profile_mean,
+            "profile_std": self.profile_std,
+            "profile_hash": self.profile_hash,
+        }
+
+
+def _as_float_tensor(value: torch.Tensor) -> torch.Tensor:
+    return value.detach().float().cpu()
+
+
+def extract_svd_atoms_from_response_matrix(
+    response: torch.Tensor,
+    top_k: int,
+    module_name: str,
+    cost: int,
+    eps: float = 1e-12,
+) -> list[SvdAtomRecord]:
+    response = response.float()
+    u, singular_values, vh = torch.linalg.svd(response, full_matrices=False)
+    k = min(int(top_k), int(singular_values.numel()))
+    denom = float(torch.sum(singular_values[:k] ** 2).item()) + eps
+    atoms: list[SvdAtomRecord] = []
+    for idx in range(k):
+        sigma = float(singular_values[idx].item())
+        atoms.append(
+            SvdAtomRecord(
+                module_name=module_name,
+                atom_index=idx,
+                cost=int(cost),
+                singular_value=sigma,
+                spectral_ratio=float((singular_values[idx] ** 2).item() / denom),
+                profile=None,
+                conflict=0.0,
+                coverage=0.0,
+                lambda_cov=1.0,
+                utility=0.0,
+                module_importance=1.0,
+                u=_as_float_tensor(u[:, idx]),
+                v=_as_float_tensor(vh[idx, :]),
+            )
+        )
+    return atoms
+
+
+def signed_projection_from_token_factors(
+    activations: torch.Tensor,
+    gradients: torch.Tensor,
+    u: torch.Tensor,
+    v: torch.Tensor,
+) -> torch.Tensor:
+    if activations.numel() == 0 or gradients.numel() == 0:
+        return torch.tensor(0.0)
+    left = gradients.float() @ u.float()
+    right = activations.float() @ v.float()
+    return torch.mean(left * right)
+
+
+def sample_response_norm_from_token_factors(
+    activations: torch.Tensor,
+    gradients: torch.Tensor,
+    mode: str = "streaming_estimate",
+) -> torch.Tensor:
+    if activations.numel() == 0 or gradients.numel() == 0:
+        return torch.tensor(0.0)
+    activations = activations.float()
+    gradients = gradients.float()
+    if mode == "none":
+        return torch.tensor(1.0)
+    if mode == "exact_small":
+        response = gradients.T @ activations / max(activations.shape[0], 1)
+        return torch.linalg.norm(response)
+    if mode == "streaming_estimate":
+        token_norm_sq = torch.sum(activations * activations, dim=-1) * torch.sum(gradients * gradients, dim=-1)
+        return torch.sqrt(torch.sum(token_norm_sq).clamp_min(0.0)) / max(activations.shape[0], 1)
+    raise ValueError(f"Unsupported profile_norm_mode: {mode}")
+
+
+def gradient_conflict(alpha: torch.Tensor) -> float:
+    alpha = alpha.detach().flatten()
+    total = max(int(alpha.numel()), 1)
+    p_pos = float((alpha > 0).sum().item()) / total
+    p_neg = float((alpha < 0).sum().item()) / total
+    return max(0.0, min(1.0, 4.0 * p_pos * p_neg))
+
+
+def normalize_signed_profiles(
+    alpha: torch.Tensor,
+    denominators: torch.Tensor | None,
+    mode: str = "streaming_estimate",
+    eps: float = 1e-12,
+) -> torch.Tensor:
+    profiles = alpha.float()
+    if mode not in {"exact_small", "streaming_estimate", "none"}:
+        raise ValueError(f"Unsupported profile_norm_mode: {mode}")
+    if mode != "none":
+        if denominators is None:
+            raise ValueError("denominators are required unless profile_norm_mode=none")
+        profiles = profiles / (denominators.float().reshape(-1, 1) + eps)
+    centered = profiles - profiles.mean(dim=0, keepdim=True)
+    norms = torch.linalg.norm(centered, dim=0, keepdim=True)
+    return centered / (norms + eps)
+
+
+def coverage_residual(profile: torch.Tensor, basis: torch.Tensor) -> float:
+    profile = profile.float()
+    if basis.numel() == 0 or basis.shape[1] == 0:
+        return float(torch.sum(profile * profile).item())
+    residual = profile - basis @ (basis.T @ profile)
+    return max(0.0, float(torch.sum(residual * residual).item()))
+
+
+def atom_utility(
+    atom: SvdAtomRecord,
+    coverage: float,
+    lambda_cov: float,
+    beta: float = 1.0,
+    gamma: float = 1.0,
+    delta: float = 1.0,
+    floor: float = 0.0,
+    cost_aware: bool = True,
+) -> float:
+    value = (
+        max(atom.module_importance, 0.0) ** float(beta)
+        * max(atom.spectral_ratio, 0.0) ** float(gamma)
+        * max(1.0 - atom.conflict, 0.0) ** float(delta)
+        * (float(lambda_cov) * float(coverage) + (1.0 - float(lambda_cov)))
+    )
+    if cost_aware:
+        value /= max(int(atom.cost), 1)
+    return max(float(floor), float(value))
+
+
+def select_coverage_evidence(
+    atoms: list[SvdAtomRecord],
+    max_selected_atoms: int,
+    epsilon_cov: float,
+    sparse_stop_by_coverage: bool = True,
+    coverage_stop_threshold: float | None = None,
+    beta: float = 1.0,
+    gamma: float = 1.0,
+    delta: float = 1.0,
+    use_soft_tail: bool = True,
+    atom_utility_floor: float = 0.0,
+    cost_aware: bool = True,
+) -> list[SvdAtomRecord]:
+    for atom in atoms:
+        atom.selected = False
+        atom.prefix_legal = False
+    if not atoms or max_selected_atoms <= 0:
+        return []
+
+    profile_dim = next((int(atom.profile.numel()) for atom in atoms if atom.profile is not None), 0)
+    basis = torch.empty(profile_dim, 0)
+    selected_counts: dict[str, int] = {}
+    selected: list[SvdAtomRecord] = []
+    stop_threshold = float(coverage_stop_threshold if coverage_stop_threshold is not None else epsilon_cov)
+
+    while len(selected) < int(max_selected_atoms):
+        candidates = [
+            atom
+            for atom in atoms
+            if not atom.selected and atom.profile is not None and atom.atom_index == selected_counts.get(atom.module_name, 0)
+        ]
+        if not candidates:
+            break
+        coverages = {id(atom): coverage_residual(atom.profile, basis) for atom in candidates}
+        max_cov = max(coverages.values()) if coverages else 0.0
+        if sparse_stop_by_coverage and max_cov < stop_threshold:
+            break
+        lambda_cov = min(1.0, max_cov / max(float(epsilon_cov), 1e-12)) if use_soft_tail else 1.0
+        for atom in candidates:
+            cov = coverages[id(atom)]
+            atom.coverage = cov
+            atom.lambda_cov = lambda_cov
+            atom.prefix_legal = True
+            atom.utility = atom_utility(
+                atom,
+                cov,
+                lambda_cov,
+                beta=beta,
+                gamma=gamma,
+                delta=delta,
+                floor=atom_utility_floor,
+                cost_aware=cost_aware,
+            )
+        best = max(
+            candidates,
+            key=lambda atom: (atom.utility, atom.coverage, atom.spectral_ratio, -atom.cost, atom.module_name, -atom.atom_index),
+        )
+        best.selected = True
+        selected.append(best)
+        selected_counts[best.module_name] = selected_counts.get(best.module_name, 0) + 1
+        basis = append_gram_schmidt(basis, best.profile)
+    return selected
+
+
+def aggregate_selected_module_utilities(
+    atoms: list[SvdAtomRecord],
+    module_names: list[str],
+    aggregation_mode: str = "weighted_log",
+) -> dict[str, float]:
+    selected = [atom for atom in atoms if atom.selected]
+    utilities: dict[str, float] = {name: 0.0 for name in module_names}
+    for atom in selected:
+        if aggregation_mode == "weighted_log":
+            utilities[atom.module_name] = utilities.get(atom.module_name, 0.0) + math.log1p(max(atom.utility, 0.0))
+        elif aggregation_mode == "weighted_sum":
+            utilities[atom.module_name] = utilities.get(atom.module_name, 0.0) + max(atom.utility, 0.0)
+        elif aggregation_mode == "count":
+            utilities[atom.module_name] = utilities.get(atom.module_name, 0.0) + 1.0
+        elif aggregation_mode == "weighted_topk":
+            utilities[atom.module_name] = utilities.get(atom.module_name, 0.0) + max(atom.utility, 0.0)
+        else:
+            raise ValueError(f"Unsupported aggregation_mode: {aggregation_mode}")
+    return utilities
+
+
+def _answer_mask(labels: torch.Tensor, seq_len: int, answer_only: bool) -> torch.Tensor:
+    if not answer_only:
+        return torch.ones(labels.shape[0], seq_len, dtype=torch.bool, device=labels.device)
+    shifted = labels[:, 1:] != -100
+    if shifted.shape[1] < seq_len:
+        pad = torch.zeros(labels.shape[0], seq_len - shifted.shape[1], dtype=torch.bool, device=labels.device)
+        shifted = torch.cat([shifted, pad], dim=1)
+    return shifted[:, :seq_len]
+
+
+def _run_backward_and_collect(
+    model: Any,
+    modules: Mapping[str, Any],
+    module_names: list[str],
+    batch: Mapping[str, torch.Tensor],
+    answer_only: bool,
+) -> dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    records: dict[str, dict[str, torch.Tensor]] = {}
+    handles = []
+
+    def make_hook(name: str):
+        def hook(_module, inputs, output):
+            if torch.is_tensor(output) and output.requires_grad:
+                output.retain_grad()
+                records[name] = {"activation": inputs[0].detach(), "output": output}
+
+        return hook
+
+    for name in module_names:
+        handles.append(modules[name].register_forward_hook(make_hook(name)))
+    outputs = None
+    try:
+        model.zero_grad(set_to_none=True)
+        outputs = model(**batch)
+        if getattr(outputs, "loss", None) is None:
+            return {}
+        outputs.loss.backward()
+        collected = {}
+        labels = batch.get("labels")
+        for name in module_names:
+            row = records.get(name)
+            if not row or row["output"].grad is None:
+                continue
+            activation = row["activation"].detach().float().cpu()
+            grad = row["output"].grad.detach().float().cpu()
+            mask = _answer_mask(labels.detach().cpu(), activation.shape[1], answer_only) if labels is not None else torch.ones(activation.shape[:2], dtype=torch.bool)
+            collected[name] = (activation, grad, mask.cpu())
+        return collected
+    finally:
+        for handle in handles:
+            handle.remove()
+        records.clear()
+        if outputs is not None:
+            del outputs
+        model.zero_grad(set_to_none=True)
+
+
+def _token_slices(
+    activation: torch.Tensor,
+    grad: torch.Tensor,
+    mask: torch.Tensor,
+    sample_idx: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    token_mask = mask[sample_idx].bool()
+    if not bool(token_mask.any()):
+        return torch.empty(0, activation.shape[-1]), torch.empty(0, grad.shape[-1])
+    return activation[sample_idx, token_mask], grad[sample_idx, token_mask]
+
+
+def _profile_hash(profile: torch.Tensor) -> str:
+    data = profile.detach().cpu().contiguous().numpy().tobytes()
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def _resolve_max_selected(value: Any, rank: int, num_modules: int, top_k: int) -> int:
+    max_possible = int(num_modules) * int(top_k)
+    if value in {None, "auto"}:
+        return min(int(rank) * int(num_modules), max_possible)
+    return min(int(value), max_possible)
+
+
+def extract_svd_atom_records(
+    model: Any,
+    module_names: list[str],
+    module_dims: Mapping[str, Mapping[str, Any]],
+    calibration_batches: list[Mapping[str, torch.Tensor]],
+    pre_cfg: Mapping[str, Any],
+    rank: int,
+    profile_path: Path,
+) -> tuple[list[SvdAtomRecord], dict[str, Any]]:
+    modules = dict(model.named_modules())
+    top_k = int(pre_cfg.get("top_k_atoms", pre_cfg.get("weighted_topk_k", rank)))
+    oversample = int(pre_cfg.get("sketch_oversample", 0))
+    sketch_dim = int(pre_cfg.get("sketch_dim", top_k + oversample))
+    sketch_dim = max(top_k, sketch_dim)
+    sketch_seed = int(pre_cfg.get("sketch_seed", 42))
+    sketch_dtype = torch.float32
+    answer_only = bool(pre_cfg.get("answer_only", True))
+    profile_norm_mode = str(pre_cfg.get("profile_norm_mode", "streaming_estimate"))
+
+    omegas = {}
+    y_states = {}
+    for offset, name in enumerate(module_names):
+        dims = module_dims[name]
+        in_dim = int(dims["in_dim"])
+        out_dim = int(dims["out_dim"])
+        s = min(sketch_dim, in_dim)
+        omegas[name] = make_random_projection(in_dim, s, sketch_seed + offset, dtype=sketch_dtype)
+        y_states[name] = torch.zeros(out_dim, s, dtype=torch.float32)
+
+    for batch in calibration_batches:
+        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
+        batch_size = next(iter(collected.values()))[0].shape[0] if collected else 0
+        for name, (activation, grad, mask) in collected.items():
+            omega = omegas[name]
+            for sample_idx in range(batch_size):
+                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
+                if a_tokens.numel() == 0:
+                    continue
+                y_states[name] += g_tokens.T @ (a_tokens @ omega) / max(a_tokens.shape[0], 1)
+
+    q_states = {name: orthonormal_basis(y_states[name]) for name in module_names}
+    b_states = {
+        name: torch.zeros(q_states[name].shape[1], int(module_dims[name]["in_dim"]), dtype=torch.float32)
+        for name in module_names
+    }
+    for batch in calibration_batches:
+        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
+        batch_size = next(iter(collected.values()))[0].shape[0] if collected else 0
+        for name, (activation, grad, mask) in collected.items():
+            q = q_states[name]
+            if q.numel() == 0:
+                continue
+            for sample_idx in range(batch_size):
+                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
+                if a_tokens.numel() == 0:
+                    continue
+                b_states[name] += (g_tokens @ q).T @ a_tokens / max(a_tokens.shape[0], 1)
+
+    atoms: list[SvdAtomRecord] = []
+    atoms_by_module: dict[str, list[SvdAtomRecord]] = {}
+    for name in module_names:
+        b_matrix = b_states[name]
+        q = q_states[name]
+        if b_matrix.numel() == 0 or q.numel() == 0:
+            response = torch.zeros(int(module_dims[name]["out_dim"]), int(module_dims[name]["in_dim"]))
+            module_atoms = extract_svd_atoms_from_response_matrix(response, top_k, name, module_rank_cost(module_dims[name]))
+        else:
+            u_tilde, singular, vh = torch.linalg.svd(b_matrix, full_matrices=False)
+            k = min(top_k, int(singular.numel()))
+            denom = float(torch.sum(singular[:k] ** 2).item()) + 1e-12
+            module_atoms = []
+            for idx in range(k):
+                module_atoms.append(
+                    SvdAtomRecord(
+                        module_name=name,
+                        atom_index=idx,
+                        cost=module_rank_cost(module_dims[name]),
+                        singular_value=float(singular[idx].item()),
+                        spectral_ratio=float((singular[idx] ** 2).item() / denom),
+                        profile=None,
+                        conflict=0.0,
+                        coverage=0.0,
+                        lambda_cov=1.0,
+                        utility=0.0,
+                        module_importance=1.0,
+                        u=_as_float_tensor(q @ u_tilde[:, idx]),
+                        v=_as_float_tensor(vh[idx, :]),
+                        profile_norm_mode=profile_norm_mode,
+                    )
+                )
+        atoms_by_module[name] = module_atoms
+        atoms.extend(module_atoms)
+
+    total_samples = sum(int(batch["input_ids"].shape[0]) for batch in calibration_batches)
+    alpha = torch.zeros(total_samples, len(atoms), dtype=torch.float32)
+    denominators = torch.zeros(total_samples, dtype=torch.float32)
+    module_norms = {name: torch.zeros(total_samples, dtype=torch.float32) for name in module_names}
+    atom_offsets = {(atom.module_name, atom.atom_index): idx for idx, atom in enumerate(atoms)}
+
+    sample_base = 0
+    for batch in calibration_batches:
+        collected = _run_backward_and_collect(model, modules, module_names, batch, answer_only)
+        batch_size = int(batch["input_ids"].shape[0])
+        for sample_idx in range(batch_size):
+            global_idx = sample_base + sample_idx
+            sample_norm_sum = 0.0
+            for name, (activation, grad, mask) in collected.items():
+                a_tokens, g_tokens = _token_slices(activation, grad, mask, sample_idx)
+                norm = sample_response_norm_from_token_factors(a_tokens, g_tokens, mode=profile_norm_mode)
+                module_norms[name][global_idx] = norm
+                sample_norm_sum += float(norm.item())
+                for atom in atoms_by_module.get(name, []):
+                    alpha[global_idx, atom_offsets[(name, atom.atom_index)]] = signed_projection_from_token_factors(
+                        a_tokens,
+                        g_tokens,
+                        atom.u,
+                        atom.v,
+                    )
+            denominators[global_idx] = sample_norm_sum
+        sample_base += batch_size
+
+    profiles = normalize_signed_profiles(alpha, denominators, mode=profile_norm_mode)
+    profile_path = Path(profile_path)
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "profiles": profiles.T.cpu(),
+            "module_names": [atom.module_name for atom in atoms],
+            "atom_indices": [atom.atom_index for atom in atoms],
+            "profile_norm_mode": profile_norm_mode,
+        },
+        profile_path,
+    )
+    for idx, atom in enumerate(atoms):
+        profile = profiles[:, idx].detach().cpu()
+        atom.profile = profile
+        atom.profile_path = str(profile_path)
+        atom.profile_index = idx
+        atom.profile_norm = float(torch.linalg.norm(profile).item())
+        atom.profile_mean = float(profile.mean().item())
+        atom.profile_std = float(profile.std(unbiased=False).item())
+        atom.profile_hash = _profile_hash(profile)
+        atom.conflict = gradient_conflict(alpha[:, idx])
+        norms = module_norms[atom.module_name]
+        atom.module_importance = float(torch.exp(torch.mean(torch.log(norms + 1e-12))).item())
+        atom.importance_mode = profile_norm_mode
+
+    evidence_cfg = dict(pre_cfg.get("evidence_selection", {}))
+    max_selected = _resolve_max_selected(
+        evidence_cfg.get("max_selected_atoms", "auto"),
+        rank=rank,
+        num_modules=len(module_names),
+        top_k=top_k,
+    )
+    selected = select_coverage_evidence(
+        atoms,
+        max_selected_atoms=max_selected,
+        epsilon_cov=float(pre_cfg.get("epsilon_cov", 0.05)),
+        sparse_stop_by_coverage=bool(evidence_cfg.get("sparse_stop_by_coverage", True)),
+        coverage_stop_threshold=float(evidence_cfg.get("coverage_stop_threshold", pre_cfg.get("epsilon_cov", 0.05))),
+        beta=float(pre_cfg.get("beta", 1.0)),
+        gamma=float(pre_cfg.get("gamma", 1.0)),
+        delta=float(pre_cfg.get("delta", 1.0)),
+        use_soft_tail=bool(pre_cfg.get("use_soft_tail", True)),
+        atom_utility_floor=float(pre_cfg.get("atom_utility_floor", 0.0)),
+        cost_aware=bool(pre_cfg.get("use_cost_aware_allocation", True)),
+    )
+    diagnostics = {
+        "num_atoms": len(atoms),
+        "num_selected_atoms": len(selected),
+        "top_k_atoms": top_k,
+        "sketch_dim": sketch_dim,
+        "sketch_seed": sketch_seed,
+        "sketch_dtype": str(pre_cfg.get("sketch_dtype", "float32")),
+        "answer_only": answer_only,
+        "profile_norm_mode": profile_norm_mode,
+        "evidence_selection": {
+            "max_selected_atoms": max_selected,
+            "sparse_stop_by_coverage": bool(evidence_cfg.get("sparse_stop_by_coverage", True)),
+            "coverage_stop_threshold": float(evidence_cfg.get("coverage_stop_threshold", pre_cfg.get("epsilon_cov", 0.05))),
+        },
+    }
+    return atoms, diagnostics

@@ -2,9 +2,9 @@ torch
 transformers
 datasets
 accelerate
-peft
+bitsandbytes
 numpy
 pandas
+pyyaml
 tqdm
-matplotlib
 pytest

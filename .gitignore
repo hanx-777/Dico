@@ -1,18 +1,28 @@
-.venv/
-.pytest_cache/
+# Python/cache noise
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS/resource fork noise
 .DS_Store
 ._*
-nohup.out
+
+# Local runtime caches
 .hf_cache/
 logs/
+nohup.out
+
+# Experiment outputs can include checkpoints and model adapter weights.
 outputs/*
 !outputs/.gitkeep
-dico_lite/outputs/
-dico_rank_experiments/outputs/
-dico_rank_experiments/.hf_cache/
-dico_rank_experiments/logs/
-dico_rank_experiments/nohup.out
-dico_lite/.DS_Store
-dico_rank_experiments/.DS_Store
+
+# Keep vendored local datasets tracked.
+!data/
+!data/**
+outputs*/
+*.pt
+*.log
+*.pid
+*.csv
