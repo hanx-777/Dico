@@ -91,5 +91,5 @@ def test_budget_manager_describes_warning_for_large_error():
 
     info = manager.describe({"m": 0}, target_budget=50)
 
-    assert info["budget_error_ratio"] == 1.0
+    assert info["budget_error_ratio"] == -1.0
     assert "exceeds 1%" in info["warning"]

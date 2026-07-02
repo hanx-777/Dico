@@ -42,6 +42,29 @@ COMMON_FILES = [
 PREALLOC_METHODS = {"dico_pre", "dico_predynamic"}
 DYNAMIC_METHODS = {"dico_dynamic", "dico_predynamic"}
 BUDGET_WARNING_THRESHOLD = 0.01
+LORA_ETA98_EXPERIMENTS = {
+    "lora_r4_eta98": {"method": "lora", "rank": 4, "eta98_baseline": True},
+    "lora_r8_eta98": {"method": "lora", "rank": 8, "eta98_baseline": True},
+}
+
+
+def _split_multiseed_name(name: str) -> tuple[str, int | None]:
+    if "__seed" not in name:
+        return name, None
+    base, seed_text = name.rsplit("__seed", 1)
+    try:
+        return base, int(seed_text)
+    except ValueError:
+        return base, None
+
+
+def _expected_for_experiment(name: str) -> dict[str, Any] | None:
+    base, _seed = _split_multiseed_name(name)
+    if base in EXPECTED_EXPERIMENTS:
+        return EXPECTED_EXPERIMENTS[base]
+    if base in LORA_ETA98_EXPERIMENTS:
+        return LORA_ETA98_EXPERIMENTS[base]
+    return None
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -128,21 +151,68 @@ def _audit_config(
 
 def _audit_budget(
     experiment: str,
+    method: str,
     budget: dict[str, Any],
+    config: dict[str, Any],
+    metrics: dict[str, Any],
     critical: list[str],
     warnings: list[str],
 ) -> dict[str, Any]:
+    target_budget = _as_int(budget.get("target_budget_paramcount", budget.get("target_budget")))
+    actual_budget = _as_int(budget.get("actual_budget_paramcount", budget.get("actual_budget")))
+    budget_ratio = _as_float(
+        budget.get("budget_ratio_paramcount", budget.get("budget_ratio")),
+        float(actual_budget / target_budget) if target_budget else 0.0,
+    )
     ratio = _as_float(budget.get("budget_error_ratio"))
+    abs_ratio = abs(ratio)
     over_budget = bool(budget.get("over_budget", False))
-    if over_budget:
+    if over_budget or budget_ratio > 1.0:
         critical.append(f"{experiment}: actual_budget exceeds target_budget")
-    if ratio > BUDGET_WARNING_THRESHOLD:
-        warnings.append(f"{experiment}: budget_error_ratio={ratio:.6f} exceeds {BUDGET_WARNING_THRESHOLD}")
-    if budget.get("warning"):
-        warnings.append(f"{experiment}: budget warning: {budget['warning']}")
+
+    eta = None
+    budget_interval_pass = budget.get("budget_interval_pass")
+    generic_repair_applied = budget.get("generic_repair_applied")
+    if method in PREALLOC_METHODS:
+        pre_cfg = config.get("preallocation", {})
+        pre_meta = metrics.get("preallocation") or {}
+        eta = _as_float(
+            budget.get("preallocation_eta", metrics.get("preallocation_eta", pre_meta.get("eta", pre_cfg.get("eta")))),
+            0.98,
+        )
+        budget_interval_pass = eta <= budget_ratio <= 1.0 and not over_budget
+        if budget_ratio < eta:
+            warnings.append(
+                f"{experiment}: budget_ratio={budget_ratio:.6f} below DiCo eta={eta:.6f}"
+            )
+    elif str(experiment).split("__seed", 1)[0] in LORA_ETA98_EXPERIMENTS:
+        eta = _as_float(config.get("budget", {}).get("enforce_target_ratio"), 0.98)
+        budget_interval_pass = 0.97 <= budget_ratio <= 0.98 and not over_budget
+        if not budget_interval_pass:
+            critical.append(
+                f"{experiment}: LoRA eta98 budget_ratio={budget_ratio:.6f} outside [0.97, 0.98]"
+            )
+    else:
+        if abs_ratio > BUDGET_WARNING_THRESHOLD:
+            warnings.append(f"{experiment}: budget_error_ratio={ratio:.6f} exceeds {BUDGET_WARNING_THRESHOLD}")
+        if budget.get("warning"):
+            warnings.append(f"{experiment}: budget warning: {budget['warning']}")
+        if budget_interval_pass is None:
+            budget_interval_pass = not over_budget and abs_ratio <= BUDGET_WARNING_THRESHOLD
+
     return {
-        "target_budget": budget.get("target_budget"),
-        "actual_budget": budget.get("actual_budget"),
+        "target_budget": target_budget,
+        "actual_budget": actual_budget,
+        "budget_ratio": budget_ratio,
+        "target_budget_paramcount": target_budget,
+        "actual_budget_paramcount": actual_budget,
+        "budget_ratio_paramcount": budget_ratio,
+        "target_budget_ranksum": budget.get("target_budget_ranksum"),
+        "actual_budget_ranksum": budget.get("actual_budget_ranksum"),
+        "budget_ratio_ranksum": budget.get("budget_ratio_ranksum"),
+        "eta": eta,
+        "budget_interval_pass": bool(budget_interval_pass),
+        "generic_repair_applied": generic_repair_applied,
         "budget_error_ratio": ratio,
         "over_budget": over_budget,
         "budget_warning": budget.get("warning"),
@@ -259,7 +329,47 @@ def _audit_preallocation_metadata(
         "atom_mode_limitation": limitation,
         "preallocation_source": metadata.get("preallocation_source"),
         "preallocation_path": preallocation_path,
+        "eta": metadata.get("eta", metrics.get("preallocation_eta")),
+        "allow_rank_beyond_selected_evidence": metadata.get("allow_rank_beyond_selected_evidence"),
+        "rounding_method": metadata.get("rounding_method"),
+        "budget_ratio": metadata.get("budget_ratio", metrics.get("budget_ratio")),
+        "budget_interval_pass": metadata.get("budget_interval_pass", metrics.get("budget_interval_pass")),
+        "generic_repair_applied": metadata.get("generic_repair_applied", metrics.get("generic_repair_applied")),
+        "cache_hit": metadata.get("cache_hit"),
+        "cache_compatible": metadata.get("cache_compatible"),
+        "cache_incompatible_reason": metadata.get("cache_incompatible_reason"),
+        "cache_incompatible_reasons": metadata.get("cache_incompatible_reasons"),
     }
+
+
+def _audit_evidence_relaxation(
+    experiment: str,
+    method: str,
+    metrics: dict[str, Any],
+    warnings: list[str],
+) -> dict[str, Any]:
+    if method not in PREALLOC_METHODS:
+        return {}
+    evidence = metrics.get("evidence_relaxation")
+    if not isinstance(evidence, dict):
+        pre_meta = metrics.get("preallocation") or {}
+        final_rank = _as_int(pre_meta.get("final_total_rank"))
+        beyond = _as_int(pre_meta.get("rank_beyond_selected_evidence_total"))
+        evidence = {
+            "selected_evidence_total": _as_int(pre_meta.get("selected_evidence_count_total")),
+            "final_rank_total": final_rank,
+            "rank_beyond_evidence_total": beyond,
+            "rank_beyond_evidence_ratio": float(beyond / final_rank) if final_rank else 0.0,
+            "modules_with_beyond": len(pre_meta.get("modules_with_rank_beyond_selected_evidence") or []),
+            "modules_total": len(pre_meta.get("module_logs") or []),
+        }
+    ratio = _as_float(evidence.get("rank_beyond_evidence_ratio"))
+    if ratio > 0.30:
+        warnings.append(
+            f"{experiment}: rank_beyond_evidence_ratio={ratio:.6f} exceeds 0.30; "
+            "DiCo-98 budget-fair relaxation is large"
+        )
+    return {"evidence_relaxation": evidence}
 
 
 def _audit_dynamic(
@@ -310,14 +420,111 @@ def _audit_dynamic(
     }
 
 
-def _audit_summary_files(output_dir: Path, warnings: list[str]) -> dict[str, bool]:
+def _audit_summary_files(output_dir: Path, warnings: list[str], multiseed: bool = False) -> dict[str, bool]:
     summary = {}
-    for filename in ["summary.csv", "summary.md"]:
+    filenames = ["summary.csv", "summary.md"]
+    if multiseed:
+        filenames.insert(1, "summary_per_run.csv")
+    for filename in filenames:
         exists = (output_dir / filename).exists()
         summary[filename] = exists
         if not exists:
             warnings.append(f"missing {filename}; run scripts/summarize_results.py after experiments")
     return summary
+
+
+def _audit_experiment_dir(
+    output_dir: Path,
+    experiment: str,
+    exp_dir: Path,
+    expected: dict[str, Any],
+    critical: list[str],
+    warnings: list[str],
+) -> dict[str, Any]:
+    _append_missing_file_criticals(exp_dir, experiment, critical)
+    exp_report: dict[str, Any] = {"status": "present"}
+
+    try:
+        config = _read_yaml(exp_dir / "config_resolved.yaml")
+        _audit_config(experiment, expected, config, critical)
+        exp_report["method"] = config.get("method")
+        exp_report["rank"] = config.get("rank")
+        _base, seed = _split_multiseed_name(experiment)
+        if seed is not None:
+            exp_report["seed"] = seed
+    except Exception as exc:
+        critical.append(f"{experiment}: could not read config_resolved.yaml: {exc}")
+        config = {}
+
+    try:
+        metrics = _read_json(exp_dir / "metrics.json")
+        exp_report["metrics_method"] = metrics.get("method")
+        exp_report["metrics_rank"] = metrics.get("rank")
+        exp_report["final_eval_accuracy"] = metrics.get("final_eval_accuracy")
+    except Exception as exc:
+        critical.append(f"{experiment}: could not read metrics.json: {exc}")
+        metrics = {}
+
+    exp_report.update(_audit_evaluation(experiment, exp_dir, config, metrics, warnings))
+
+    try:
+        budget = _read_json(exp_dir / "budget.json")
+        exp_report.update(
+            _audit_budget(
+                experiment,
+                expected["method"],
+                budget,
+                config,
+                metrics,
+                critical,
+                warnings,
+            )
+        )
+    except Exception as exc:
+        critical.append(f"{experiment}: could not read budget.json: {exc}")
+
+    exp_report.update(_audit_evidence_relaxation(experiment, expected["method"], metrics, warnings))
+
+    try:
+        initial_payload = _read_json(exp_dir / "rank_allocation_initial.json")
+        initial_allocation = _rank_map(initial_payload)
+        exp_report["initial_total_rank"] = sum(initial_allocation.values())
+        if expected["method"] == "dico_dynamic" and not _is_uniform(initial_allocation):
+            critical.append(f"{experiment}: DiCo-Dynamic initial allocation must be uniform")
+        if expected["method"] in PREALLOC_METHODS:
+            exp_report["preallocation"] = _audit_preallocation_metadata(
+                experiment,
+                output_dir,
+                initial_payload,
+                metrics,
+                critical,
+            )
+    except Exception as exc:
+        critical.append(f"{experiment}: could not read rank_allocation_initial.json: {exc}")
+
+    try:
+        final_payload = _read_json(exp_dir / "rank_allocation_final.json")
+        final_allocation = _rank_map(final_payload)
+        exp_report["final_total_rank"] = sum(final_allocation.values())
+    except Exception as exc:
+        critical.append(f"{experiment}: could not read rank_allocation_final.json: {exc}")
+
+    rank_history = _read_csv(exp_dir / "rank_history.csv")
+    if not rank_history:
+        critical.append(f"{experiment}: rank_history.csv is empty or unreadable")
+
+    exp_report.update(
+        _audit_dynamic(
+            experiment,
+            exp_dir,
+            expected["method"],
+            config,
+            rank_history,
+            critical,
+            warnings,
+        )
+    )
+    return exp_report
 
 
 def audit_outputs(output_dir: Path | str) -> dict[str, Any]:
@@ -326,85 +533,64 @@ def audit_outputs(output_dir: Path | str) -> dict[str, Any]:
     warnings: list[str] = []
     experiments: dict[str, Any] = {}
 
-    for experiment, expected in EXPECTED_EXPERIMENTS.items():
-        exp_dir = output_dir / experiment
-        if not exp_dir.exists():
-            critical.append(f"{experiment}: Missing experiment directory {exp_dir}")
-            experiments[experiment] = {"status": "missing"}
-            continue
+    output_children = sorted(output_dir.iterdir()) if output_dir.exists() else []
+    run_dirs = [
+        path
+        for path in output_children
+        if path.is_dir()
+        and ((path / "config_resolved.yaml").exists() or (path / "metrics.json").exists())
+    ]
+    multiseed_dirs = [path for path in run_dirs if _split_multiseed_name(path.name)[1] is not None]
+    multiseed = bool(multiseed_dirs)
+    seed_coverage: dict[str, Any] | None = None
 
-        _append_missing_file_criticals(exp_dir, experiment, critical)
-        exp_report: dict[str, Any] = {"status": "present"}
-
-        try:
-            config = _read_yaml(exp_dir / "config_resolved.yaml")
-            _audit_config(experiment, expected, config, critical)
-            exp_report["method"] = config.get("method")
-            exp_report["rank"] = config.get("rank")
-        except Exception as exc:
-            critical.append(f"{experiment}: could not read config_resolved.yaml: {exc}")
-            config = {}
-
-        try:
-            metrics = _read_json(exp_dir / "metrics.json")
-            exp_report["metrics_method"] = metrics.get("method")
-            exp_report["metrics_rank"] = metrics.get("rank")
-            exp_report["final_eval_accuracy"] = metrics.get("final_eval_accuracy")
-        except Exception as exc:
-            critical.append(f"{experiment}: could not read metrics.json: {exc}")
-            metrics = {}
-
-        exp_report.update(_audit_evaluation(experiment, exp_dir, config, metrics, warnings))
-
-        try:
-            budget = _read_json(exp_dir / "budget.json")
-            exp_report.update(_audit_budget(experiment, budget, critical, warnings))
-        except Exception as exc:
-            critical.append(f"{experiment}: could not read budget.json: {exc}")
-
-        try:
-            initial_payload = _read_json(exp_dir / "rank_allocation_initial.json")
-            initial_allocation = _rank_map(initial_payload)
-            exp_report["initial_total_rank"] = sum(initial_allocation.values())
-            if expected["method"] == "dico_dynamic" and not _is_uniform(initial_allocation):
-                critical.append(f"{experiment}: DiCo-Dynamic initial allocation must be uniform")
-            if expected["method"] in PREALLOC_METHODS:
-                exp_report["preallocation"] = _audit_preallocation_metadata(
-                    experiment,
-                    output_dir,
-                    initial_payload,
-                    metrics,
-                    critical,
-                )
-        except Exception as exc:
-            critical.append(f"{experiment}: could not read rank_allocation_initial.json: {exc}")
-            initial_allocation = {}
-
-        try:
-            final_payload = _read_json(exp_dir / "rank_allocation_final.json")
-            final_allocation = _rank_map(final_payload)
-            exp_report["final_total_rank"] = sum(final_allocation.values())
-        except Exception as exc:
-            critical.append(f"{experiment}: could not read rank_allocation_final.json: {exc}")
-
-        rank_history = _read_csv(exp_dir / "rank_history.csv")
-        if not rank_history:
-            critical.append(f"{experiment}: rank_history.csv is empty or unreadable")
-
-        exp_report.update(
-            _audit_dynamic(
-                experiment,
+    if multiseed:
+        seeds = sorted({seed for path in multiseed_dirs for _base, seed in [_split_multiseed_name(path.name)] if seed is not None})
+        expected_experiments = dict(EXPECTED_EXPERIMENTS)
+        present_bases = {_split_multiseed_name(path.name)[0] for path in multiseed_dirs}
+        if present_bases & set(LORA_ETA98_EXPERIMENTS):
+            expected_experiments.update(LORA_ETA98_EXPERIMENTS)
+        missing_seed_runs = []
+        for experiment in sorted(expected_experiments):
+            for seed in seeds:
+                run_name = f"{experiment}__seed{seed}"
+                if not (output_dir / run_name).exists():
+                    missing_seed_runs.append(run_name)
+                    critical.append(f"{run_name}: Missing experiment directory {output_dir / run_name}")
+        seed_coverage = {
+            "expected_seeds": seeds,
+            "missing_runs": missing_seed_runs,
+        }
+        for exp_dir in multiseed_dirs:
+            expected = _expected_for_experiment(exp_dir.name)
+            if expected is None:
+                warnings.append(f"{exp_dir.name}: unknown experiment family; auditing common files only")
+                expected = {"method": _read_yaml(exp_dir / "config_resolved.yaml").get("method"), "rank": _read_yaml(exp_dir / "config_resolved.yaml").get("rank")}
+            experiments[exp_dir.name] = _audit_experiment_dir(
+                output_dir,
+                exp_dir.name,
                 exp_dir,
-                expected["method"],
-                config,
-                rank_history,
+                expected,
                 critical,
                 warnings,
             )
-        )
-        experiments[experiment] = exp_report
+    else:
+        for experiment, expected in EXPECTED_EXPERIMENTS.items():
+            exp_dir = output_dir / experiment
+            if not exp_dir.exists():
+                critical.append(f"{experiment}: Missing experiment directory {exp_dir}")
+                experiments[experiment] = {"status": "missing"}
+                continue
+            experiments[experiment] = _audit_experiment_dir(
+                output_dir,
+                experiment,
+                exp_dir,
+                expected,
+                critical,
+                warnings,
+            )
 
-    summary_files = _audit_summary_files(output_dir, warnings)
+    summary_files = _audit_summary_files(output_dir, warnings, multiseed=multiseed)
     status = "fail" if critical else ("warning" if warnings else "pass")
     return {
         "status": status,
@@ -412,6 +598,8 @@ def audit_outputs(output_dir: Path | str) -> dict[str, Any]:
         "warnings": warnings,
         "experiments": experiments,
         "summary_files": summary_files,
+        "multiseed": multiseed,
+        "seed_coverage": seed_coverage,
     }
 
 

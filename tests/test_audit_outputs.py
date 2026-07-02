@@ -64,6 +64,8 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
                 "aggregation_mode": "weighted_topk",
                 "atom_weight_normalization": "none",
                 "use_cost_aware_allocation": True,
+                "eta": 0.98,
+                "allow_rank_beyond_selected_evidence": True,
             },
         },
     )
@@ -75,6 +77,11 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "rank": rank,
             "target_budget": 32,
             "actual_budget": 32,
+            "budget_ratio": 1.0,
+            "preallocation_eta": 0.98 if method in {"dico_pre", "dico_predynamic"} else None,
+            "budget_eta_reached": True,
+            "budget_interval_pass": True,
+            "generic_repair_applied": method not in {"dico_pre", "dico_predynamic"},
             "budget_error_ratio": 0.0,
             "evaluation_protocol": "internal_zero_shot",
             "evaluation_prompt_style": "sft_cot_hash",
@@ -90,6 +97,8 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
                 "use_cost_aware_allocation": True,
                 "atom_mode": "module_proxy",
                 "atom_mode_limitation": "module_proxy limitation",
+                "eta": 0.98,
+                "allow_rank_beyond_selected_evidence": True,
             }
             if method in {"dico_pre", "dico_predynamic"}
             else None,
@@ -100,6 +109,9 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
         {
             "target_budget": 32,
             "actual_budget": 32,
+            "budget_ratio": 1.0,
+            "budget_interval_pass": True,
+            "generic_repair_applied": method not in {"dico_pre", "dico_predynamic"},
             "budget_error_ratio": 0.0,
             "warning": None,
         },
@@ -113,6 +125,10 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "use_cost_aware_allocation": True,
             "atom_mode": "module_proxy",
             "atom_mode_limitation": "module_proxy limitation",
+            "eta": 0.98,
+            "budget_ratio": 1.0,
+            "budget_interval_pass": True,
+            "generic_repair_applied": False,
             "module_logs": [{"module_name": "m", "final_rank": rank}],
         }
         if method in {"dico_pre", "dico_predynamic"}
@@ -179,6 +195,29 @@ def test_audit_outputs_accepts_complete_mock_outputs(tmp_path: Path):
     assert report["experiments"]["lora_r4"]["eval_scope"] == "2-sample subset"
 
 
+def test_audit_outputs_checks_multiseed_coverage(tmp_path: Path):
+    audit = load_audit_module()
+    for seed in [42, 43]:
+        for name, meta in audit.EXPECTED_EXPERIMENTS.items():
+            make_experiment(
+                tmp_path,
+                f"{name}__seed{seed}",
+                meta["method"],
+                meta["rank"],
+                dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
+            )
+    (tmp_path / "summary.csv").write_text("experiment,n\n", encoding="utf-8")
+    (tmp_path / "summary_per_run.csv").write_text("experiment,seed\n", encoding="utf-8")
+    (tmp_path / "summary.md").write_text("| Method |\n", encoding="utf-8")
+
+    report = audit.audit_outputs(tmp_path)
+
+    assert report["multiseed"] is True
+    assert report["seed_coverage"]["expected_seeds"] == [42, 43]
+    assert report["seed_coverage"]["missing_runs"] == []
+    assert report["critical"] == []
+
+
 def test_audit_outputs_warns_on_budget_error_ratio(tmp_path: Path):
     audit = load_audit_module()
     for name, meta in audit.EXPECTED_EXPERIMENTS.items():
@@ -198,6 +237,104 @@ def test_audit_outputs_warns_on_budget_error_ratio(tmp_path: Path):
 
     assert report["status"] == "warning"
     assert any("budget_error_ratio" in item for item in report["warnings"])
+
+
+def test_audit_outputs_accepts_dico_pre_budget_ratio_at_eta(tmp_path: Path):
+    audit = load_audit_module()
+    for name, meta in audit.EXPECTED_EXPERIMENTS.items():
+        make_experiment(
+            tmp_path,
+            name,
+            meta["method"],
+            meta["rank"],
+            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
+        )
+    for filename in ["summary.csv", "summary.md"]:
+        (tmp_path / filename).write_text("ok\n", encoding="utf-8")
+    budget_path = tmp_path / "dico_pre_r4" / "budget.json"
+    budget = json.loads(budget_path.read_text(encoding="utf-8"))
+    budget.update(
+        {
+            "target_budget": 100,
+            "actual_budget": 98,
+            "budget_ratio": 0.98,
+            "budget_error_ratio": 0.02,
+            "budget_interval_pass": True,
+            "generic_repair_applied": False,
+        }
+    )
+    write_json(budget_path, budget)
+    metrics_path = tmp_path / "dico_pre_r4" / "metrics.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metrics.update(
+        {
+            "target_budget": 100,
+            "actual_budget": 98,
+            "budget_ratio": 0.98,
+            "budget_error_ratio": 0.02,
+            "preallocation_eta": 0.98,
+            "budget_eta_reached": True,
+            "budget_interval_pass": True,
+            "generic_repair_applied": False,
+        }
+    )
+    metrics["preallocation"]["eta"] = 0.98
+    write_json(metrics_path, metrics)
+
+    report = audit.audit_outputs(tmp_path)
+
+    assert not any("dico_pre_r4: budget_error_ratio" in item for item in report["warnings"])
+    assert report["experiments"]["dico_pre_r4"]["budget_ratio"] == 0.98
+    assert report["experiments"]["dico_pre_r4"]["budget_interval_pass"] is True
+
+
+def test_audit_budget_accepts_lora_eta98_interval():
+    audit = load_audit_module()
+    critical = []
+    warnings = []
+
+    result = audit._audit_budget(
+        "lora_r4_eta98",
+        "lora",
+        {
+            "target_budget": 100,
+            "actual_budget": 98,
+            "budget_ratio": 0.98,
+            "budget_error_ratio": -0.02,
+        },
+        {"budget": {"enforce_target_ratio": 0.98}},
+        {},
+        critical,
+        warnings,
+    )
+
+    assert critical == []
+    assert warnings == []
+    assert result["budget_interval_pass"] is True
+
+
+def test_audit_warns_when_evidence_relaxation_is_large():
+    audit = load_audit_module()
+    warnings = []
+
+    result = audit._audit_evidence_relaxation(
+        "dico_pre_r8",
+        "dico_pre",
+        {
+            "evidence_relaxation": {
+                "selected_evidence_total": 10,
+                "final_rank_total": 20,
+                "rank_beyond_evidence_total": 8,
+                "rank_beyond_evidence_ratio": 0.4,
+                "modules_with_beyond": 3,
+                "modules_total": 7,
+            }
+        },
+        warnings,
+    )
+
+    assert result["evidence_relaxation"]["rank_beyond_evidence_ratio"] == 0.4
+    assert any("rank_beyond_evidence_ratio" in item for item in warnings)
 
 
 def test_audit_outputs_marks_over_budget_as_critical(tmp_path: Path):

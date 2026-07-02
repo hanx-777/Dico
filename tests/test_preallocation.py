@@ -6,7 +6,11 @@ import torch
 import dico_rank.trainer as trainer_module
 from dico_rank.preallocation import DiCoPreAllocator, build_preallocation_cache_context, load_preallocation
 from dico_rank.rank_budget import get_uniform_budget
-from dico_rank.trainer import _preallocation_cache_is_compatible, build_preallocation_cache
+from dico_rank.trainer import (
+    _preallocation_cache_incompatible_reasons,
+    _preallocation_cache_is_compatible,
+    build_preallocation_cache,
+)
 
 
 def test_preallocation_returns_all_modules_and_round_trips(tmp_path: Path):
@@ -151,6 +155,87 @@ def test_preallocation_cache_accepts_matching_context():
     }
 
     assert _preallocation_cache_is_compatible(payload, config, module_names, module_dims)
+
+
+def test_preallocation_cache_rejected_when_budget_fair_semantics_change():
+    module_names = ["a"]
+    module_dims = {"a": {"in_dim": 4, "out_dim": 4}}
+    config = {
+        "seed": 42,
+        "rank": 2,
+        "model": {"name_or_path": "/models/qwen"},
+        "data": {"dataset_name": "openai/gsm8k", "dataset_config": "main"},
+        "calibration": {"num_samples": 128, "seed": 42},
+        "lora": {"target_modules": ["q_proj"]},
+        "preallocation": {
+            "allocation_method": "coverage_evidence_weighted",
+            "aggregation_mode": "weighted_topk",
+            "atom_weight_normalization": "none",
+            "use_cost_aware_allocation": True,
+            "eta": 0.95,
+            "lambda_next": 1.0,
+            "rounding_method": "budget_aware_next_atom",
+            "use_soft_tail": True,
+            "allow_rank_beyond_selected_evidence": False,
+        },
+    }
+    payload = {
+        "rank_allocation": {"a": 2},
+        "module_dims": module_dims,
+        "module_logs": [{"module_name": "a"}],
+        "aggregation_mode": "weighted_topk",
+        "atom_weight_normalization": "none",
+        "use_cost_aware_allocation": True,
+        "cache_context": build_preallocation_cache_context(config, module_names, module_dims),
+    }
+    changed = json.loads(json.dumps(config))
+    changed["preallocation"]["eta"] = 0.98
+    changed["preallocation"]["allow_rank_beyond_selected_evidence"] = True
+
+    assert not _preallocation_cache_is_compatible(payload, changed, module_names, module_dims)
+
+
+def test_preallocation_cache_reports_all_semantic_mismatch_reasons():
+    module_names = ["a"]
+    module_dims = {"a": {"in_dim": 4, "out_dim": 4}}
+    config = {
+        "seed": 42,
+        "rank": 2,
+        "model": {"name_or_path": "/models/qwen"},
+        "data": {"dataset_name": "openai/gsm8k", "dataset_config": "main"},
+        "calibration": {"num_samples": 128, "seed": 42},
+        "lora": {"target_modules": ["q_proj"]},
+        "preallocation": {
+            "allocation_method": "coverage_evidence_weighted",
+            "aggregation_mode": "weighted_topk",
+            "atom_weight_normalization": "none",
+            "use_cost_aware_allocation": True,
+            "eta": 0.95,
+            "lambda_next": 1.0,
+            "rounding_method": "budget_aware_next_atom",
+            "use_soft_tail": True,
+            "allow_rank_beyond_selected_evidence": False,
+        },
+    }
+    payload = {
+        "rank_allocation": {"a": 2},
+        "module_dims": module_dims,
+        "module_logs": [{"module_name": "a"}],
+        "aggregation_mode": "weighted_topk",
+        "atom_weight_normalization": "none",
+        "use_cost_aware_allocation": True,
+        "cache_context": build_preallocation_cache_context(config, module_names, module_dims),
+    }
+    changed = json.loads(json.dumps(config))
+    changed["preallocation"]["eta"] = 0.98
+    changed["preallocation"]["lambda_next"] = 2.0
+    changed["preallocation"]["allow_rank_beyond_selected_evidence"] = True
+
+    reasons = _preallocation_cache_incompatible_reasons(payload, changed, module_names, module_dims)
+
+    assert "cache_context.preallocation.eta_mismatch" in reasons
+    assert "cache_context.preallocation.lambda_next_mismatch" in reasons
+    assert "cache_context.preallocation.allow_rank_beyond_selected_evidence_mismatch" in reasons
 
 
 def test_build_preallocation_cache_does_not_write_training_artifacts(tmp_path: Path):

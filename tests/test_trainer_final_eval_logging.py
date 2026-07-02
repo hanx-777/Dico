@@ -54,6 +54,55 @@ def test_train_skips_in_loop_eval_and_logs_timestamped_final_eval(tmp_path: Path
     assert metrics_on_disk["final_eval_accuracy"] is not None
 
 
+def test_mid_eval_loss_logs_to_train_log_only(tmp_path: Path):
+    config = load_yaml(ROOT / "configs" / "debug" / "tiny_lora.yaml")
+    config["experiment_name"] = "tiny_lora_mid_eval"
+    config["project"]["output_dir"] = str(tmp_path / "outputs")
+    config["training"]["max_steps"] = 2
+    config["training"]["logging_steps"] = 1
+    config["evaluation"]["compute_accuracy"] = False
+    config["evaluation"]["mid_eval_loss_only"] = {
+        "enabled": True,
+        "every_n_steps": 1,
+        "max_batches": 1,
+    }
+
+    train(config)
+
+    output_dir = tmp_path / "outputs" / "tiny_lora_mid_eval"
+    train_rows = _jsonl(output_dir / "train_log.jsonl")
+    mid_rows = [row for row in train_rows if row["event"] == "mid_eval_loss"]
+    eval_rows = _jsonl(output_dir / "eval_log.jsonl")
+    rank_history_header = (output_dir / "rank_history.csv").read_text(encoding="utf-8").splitlines()[0]
+
+    assert [row["step"] for row in mid_rows] == [1]
+    assert "eval_loss" in mid_rows[0]
+    assert all(row["event"] == "final_eval" for row in eval_rows)
+    assert "latest_mid_eval_loss" in rank_history_header
+
+
+def test_masked_lora_state_contains_only_lora_and_rank_mask(tmp_path: Path):
+    config = load_yaml(ROOT / "configs" / "debug" / "tiny_lora.yaml")
+    config["experiment_name"] = "tiny_lora_state_keys"
+    config["project"]["output_dir"] = str(tmp_path / "outputs")
+    config["training"]["max_steps"] = 1
+    config["evaluation"]["compute_accuracy"] = False
+    config["evaluation"]["mid_eval_loss_only"] = {"enabled": False}
+
+    train(config)
+
+    state = torch.load(
+        tmp_path / "outputs" / "tiny_lora_state_keys" / "masked_lora_state.pt",
+        map_location="cpu",
+    )
+    assert state
+    assert all(
+        "lora_A" in key or "lora_B" in key or "rank_mask" in key
+        for key in state
+    )
+    assert not any("optimizer" in key or "base_layer.weight" in key for key in state)
+
+
 def test_lora_training_does_not_build_calibration_batches(monkeypatch, tmp_path: Path):
     config = load_yaml(ROOT / "configs" / "debug" / "tiny_lora.yaml")
     config["project"]["output_dir"] = str(tmp_path / "outputs")
@@ -104,6 +153,146 @@ def test_pre_training_releases_calibration_batches(monkeypatch, tmp_path: Path):
     train(config)
 
     assert calibration_batches == []
+
+
+def test_dico_pre_keeps_preallocation_without_generic_repair(monkeypatch, tmp_path: Path):
+    config = load_yaml(ROOT / "configs" / "debug" / "tiny_lora.yaml")
+    config["experiment_name"] = "tiny_dico_pre_no_repair"
+    config["method"] = "dico_pre"
+    config["project"]["output_dir"] = str(tmp_path / "outputs")
+    config["training"]["max_steps"] = 1
+    config["evaluation"]["accuracy_max_samples"] = 1
+    config["evaluation"]["generation_max_new_tokens"] = 4
+    config["calibration"]["enabled"] = True
+    config["preallocation"]["eta"] = 0.0
+
+    calibration_batches = [{"input_ids": torch.tensor([[1]]), "labels": torch.tensor([[1]])}]
+    preallocation_by_module = {}
+
+    def build_calibration_batches(*_args, **_kwargs):
+        return calibration_batches
+
+    def load_or_build_preallocation(
+        _config,
+        _model,
+        _tokenizer,
+        module_names,
+        _module_dims,
+        batches,
+        _target_budget,
+        _project_root,
+    ):
+        assert batches is calibration_batches
+        preallocation_by_module.update({name: 1 for name in module_names})
+        return dict(preallocation_by_module), {
+            "atom_mode": "module_proxy",
+            "module_logs": [{"module_name": name, "final_rank": 1} for name in module_names],
+        }
+
+    def fail_repair(*_args, **_kwargs):
+        raise AssertionError("dico_pre must not call generic BudgetManager.repair")
+
+    monkeypatch.setattr(trainer_module, "_build_calibration_batches", build_calibration_batches)
+    monkeypatch.setattr(trainer_module, "load_or_build_preallocation", load_or_build_preallocation)
+    monkeypatch.setattr(trainer_module.BudgetManager, "repair", fail_repair)
+
+    train(config)
+
+    output_dir = tmp_path / "outputs" / "tiny_dico_pre_no_repair"
+    initial_payload = json.loads((output_dir / "rank_allocation_initial.json").read_text(encoding="utf-8"))
+    final_payload = json.loads((output_dir / "rank_allocation_final.json").read_text(encoding="utf-8"))
+    metrics = json.loads((output_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert initial_payload["rank_allocation"] == preallocation_by_module
+    assert final_payload == preallocation_by_module
+    assert initial_payload["generic_repair_applied"] is False
+    assert metrics["generic_repair_applied"] is False
+
+
+def test_dico_predynamic_reference_uses_raw_preallocation(monkeypatch, tmp_path: Path):
+    config = load_yaml(ROOT / "configs" / "debug" / "tiny_lora.yaml")
+    config["experiment_name"] = "tiny_dico_predynamic_reference"
+    config["method"] = "dico_predynamic"
+    config["project"]["output_dir"] = str(tmp_path / "outputs")
+    config["training"]["max_steps"] = 1
+    config["evaluation"]["accuracy_max_samples"] = 1
+    config["evaluation"]["generation_max_new_tokens"] = 4
+    config["calibration"]["enabled"] = True
+    config["dynamic"]["enabled"] = True
+    config["preallocation"]["eta"] = 0.0
+
+    calibration_batches = [{"input_ids": torch.tensor([[1]]), "labels": torch.tensor([[1]])}]
+    preallocation_by_module = {}
+    captured_reference = {}
+
+    def build_calibration_batches(*_args, **_kwargs):
+        return calibration_batches
+
+    def load_or_build_preallocation(
+        _config,
+        _model,
+        _tokenizer,
+        module_names,
+        _module_dims,
+        batches,
+        _target_budget,
+        _project_root,
+    ):
+        assert batches is calibration_batches
+        preallocation_by_module.update({name: 1 for name in module_names})
+        return dict(preallocation_by_module), {
+            "atom_mode": "module_proxy",
+            "module_logs": [{"module_name": name, "final_rank": 1} for name in module_names],
+        }
+
+    def fail_repair(*_args, **_kwargs):
+        raise AssertionError("dico_predynamic preallocation must not call generic BudgetManager.repair")
+
+    class FakeDynamicAllocator:
+        def __init__(
+            self,
+            masked_lora_modules,
+            module_dims,
+            initial_allocation,
+            target_budget,
+            config,
+            base_rank,
+            preallocation=None,
+            budget_manager=None,
+        ):
+            assert masked_lora_modules
+            assert module_dims
+            assert target_budget
+            assert config
+            assert base_rank
+            assert budget_manager is not None
+            self.current_allocation = dict(initial_allocation)
+            self.module_scores = {}
+            captured_reference.update(preallocation or {})
+
+        def should_adjust(self, *_args, **_kwargs):
+            return False
+
+        def observe_gradients(self):
+            return None
+
+        def update_statistics(self):
+            return None
+
+        def adjust_rank(self, *_args, **_kwargs):
+            raise AssertionError("adjust_rank should not run in this tiny reference test")
+
+    monkeypatch.setattr(trainer_module, "_build_calibration_batches", build_calibration_batches)
+    monkeypatch.setattr(trainer_module, "load_or_build_preallocation", load_or_build_preallocation)
+    monkeypatch.setattr(trainer_module.BudgetManager, "repair", fail_repair)
+    monkeypatch.setattr(trainer_module, "DynamicRankAllocator", FakeDynamicAllocator)
+
+    train(config)
+
+    metrics = json.loads(
+        (tmp_path / "outputs" / "tiny_dico_predynamic_reference" / "metrics.json").read_text(encoding="utf-8")
+    )
+    assert captured_reference == preallocation_by_module
+    assert metrics["generic_repair_applied"] is False
 
 
 def _calibration_ids(records: list[dict], calibration_cfg: dict) -> list[int]:

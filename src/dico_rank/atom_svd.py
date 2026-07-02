@@ -234,7 +234,8 @@ def select_coverage_evidence(
         return []
 
     profile_dim = next((int(atom.profile.numel()) for atom in atoms if atom.profile is not None), 0)
-    basis = torch.empty(profile_dim, 0)
+    empty_basis = torch.empty(profile_dim, 0)
+    bases: dict[str, torch.Tensor] = {}
     selected_counts: dict[str, int] = {}
     selected: list[SvdAtomRecord] = []
     stop_threshold = float(coverage_stop_threshold if coverage_stop_threshold is not None else epsilon_cov)
@@ -247,7 +248,13 @@ def select_coverage_evidence(
         ]
         if not candidates:
             break
-        coverages = {id(atom): coverage_residual(atom.profile, basis) for atom in candidates}
+            
+        coverages = {}
+        for atom in candidates:
+            mod_type = atom.module_name.split('.')[-1]
+            basis = bases.get(mod_type, empty_basis)
+            coverages[id(atom)] = coverage_residual(atom.profile, basis)
+            
         max_cov = max(coverages.values()) if coverages else 0.0
         if sparse_stop_by_coverage and max_cov < stop_threshold:
             break
@@ -274,7 +281,9 @@ def select_coverage_evidence(
         best.selected = True
         selected.append(best)
         selected_counts[best.module_name] = selected_counts.get(best.module_name, 0) + 1
-        basis = append_gram_schmidt(basis, best.profile)
+        
+        best_mod_type = best.module_name.split('.')[-1]
+        bases[best_mod_type] = append_gram_schmidt(bases.get(best_mod_type, empty_basis), best.profile)
     return selected
 
 
@@ -776,7 +785,11 @@ def extract_svd_atom_records(
         atom.profile_hash = _profile_hash(profile)
         atom.conflict = gradient_conflict(alpha[:, idx])
         norms = module_norms[atom.module_name]
-        atom.module_importance = float(torch.exp(torch.mean(torch.log(norms + 1e-12))).item())
+        valid_norms = norms[norms > 1e-8]
+        if len(valid_norms) > 0:
+            atom.module_importance = float(torch.exp(torch.mean(torch.log(valid_norms))).item())
+        else:
+            atom.module_importance = 0.0
         atom.importance_mode = profile_norm_mode
 
     evidence_cfg = dict(pre_cfg.get("evidence_selection", {}))

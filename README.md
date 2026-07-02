@@ -4,6 +4,8 @@
 
 当前代码版本的重点是 **预算受控的 LoRA rank allocation**：在相同或近似相同的可训练参数预算下，比较不同 rank 分配策略对最终 GSM8K exact-match accuracy 和 eval loss 的影响。默认实验使用本地 Qwen3-8B、项目内置 GSM8K JSONL 文件，并在训练结束后统一做 final loss 与 full GSM8K generation accuracy 评估。
 
+完整技术说明见 [docs/TECHNICAL_DOCUMENT.md](docs/TECHNICAL_DOCUMENT.md)。v0.2.7 起，预算公平主口径为 `*_paramcount`，multi-seed 结果会生成 `summary_per_run.csv` 和聚合后的 `summary.csv`。
+
 ## 核心功能
 
 - **Masked LoRA 注入**：对目标线性层注入最大 rank 的 LoRA 参数，并通过 rank mask 控制每个模块实际激活 rank。
@@ -42,9 +44,9 @@ DiCo 的基本想法是：LoRA 的每一个 rank 对应一个 rank-one 更新方
 1. 在冻结基座模型上使用校准样本收集一阶响应信号。
 2. 对每个目标模块用 streaming randomized sketch 近似提取 top-K SVD direction atoms。
 3. 为 atom 构造 signed sample profile，并估计梯度冲突程度。
-4. 用 coverage greedy 选择不冗余、冲突较低、效用较高的 atom evidence。
+4. 用 Per-Type coverage greedy 选择不冗余、冲突较低、效用较高的 atom evidence。
 5. 将 selected atoms 的 utility 聚合为 module-level direction demand。
-6. 通过 cost-aware soft allocation 和 budget-aware rounding 生成整数 rank pattern。
+6. 通过 cost-aware soft allocation、budget-aware next-atom rounding 以及 Evidence Relaxation 生成最终打满预算的整数 rank pattern。
 
 默认关键配置：
 
@@ -57,13 +59,14 @@ preallocation:
   sketch_dim: 32
   answer_only: true
   profile_norm_mode: streaming_estimate
-  eta: 0.95
+  eta: 0.98
   rounding_method: budget_aware_next_atom
+  allow_rank_beyond_selected_evidence: true
   atom_weight_normalization: none
   use_cost_aware_allocation: true
 ```
 
-更完整的方法草稿见 [v0.2.6.md](v0.2.6.md)。
+更完整的方法草稿见 [v0.2.7.md](v0.2.7.md)。
 
 ## 目录结构
 
@@ -79,6 +82,8 @@ dico_rank_experiments/
 │   ├── run_experiment.py
 │   ├── build_preallocation.py
 │   ├── run_all_8.sh
+│   ├── run_all_multiseed.sh
+│   ├── run_ablations.sh
 │   ├── evaluate_experiment.py
 │   ├── summarize_results.py
 │   └── audit_outputs.py
@@ -92,6 +97,7 @@ dico_rank_experiments/
 │   └── evaluator.py
 ├── tests/
 ├── AUDIT.md
+├── docs/TECHNICAL_DOCUMENT.md
 ├── v0.2.5.md
 └── v0.2.6.md
 ```
@@ -276,6 +282,33 @@ calibration.save_dir=DIR/preallocations
 ```
 
 除非你显式传入 `--override calibration.save_dir=...`。
+
+## Multi-Seed 与 Ablation
+
+主 8 组三 seed：
+
+```bash
+SEEDS="42 43 44" bash scripts/run_all_multiseed.sh --output_dir outputs_multiseed
+```
+
+包含 LoRA eta98 baseline：
+
+```bash
+INCLUDE_LORA_ETA=1 SEEDS="42 43 44" bash scripts/run_all_multiseed.sh --output_dir outputs_multiseed_eta
+```
+
+r8 ablation：
+
+```bash
+SEEDS="42 43 44" bash scripts/run_ablations.sh --output_dir outputs_ablations
+```
+
+只检查命令展开、不训练：
+
+```bash
+DRY_RUN=1 SEEDS="42 43" bash scripts/run_all_multiseed.sh
+DRY_RUN=1 SEEDS="42" bash scripts/run_ablations.sh
+```
 
 ## 查看运行状态
 

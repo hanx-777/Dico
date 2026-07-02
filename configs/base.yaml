@@ -37,6 +37,7 @@ training:
   eval_steps: 0
   save_steps: 1000
   gradient_checkpointing: true
+  save_optimizer_state: false
 
 lora:
   alpha: 16
@@ -55,6 +56,8 @@ lora:
 budget:
   mode: equal_trainable_params
   warning_threshold: 0.01
+  enforce_target_ratio: 1.0
+  enforce_min_ratio: 0.97
 
 calibration:
   enabled: true
@@ -85,10 +88,10 @@ preallocation:
   delta: 1.0
   epsilon_cov: 0.05
   use_soft_tail: true
-  eta: 0.95
+  eta: 0.98
   lambda_next: 1.0
   rounding_method: budget_aware_next_atom
-  allow_rank_beyond_selected_evidence: false
+  allow_rank_beyond_selected_evidence: true
   evidence_selection:
     max_selected_atoms: auto
     sparse_stop_by_coverage: true
@@ -98,7 +101,7 @@ preallocation:
   atom_utility_floor: 0.0
   score_type: coverage
   coverage_lambda: 0.5
-  r_min: 0
+  r_min_multiplier: 0.25
   r_max_multiplier: 2
   save_atom_logs: true
 
@@ -112,7 +115,7 @@ dynamic:
   update_weight: 0.5
   score_smoothing: 1.0e-6
   allocation_temperature: 1.0
-  r_min: 0
+  r_min_multiplier: 0.25
   r_max_multiplier: 2
 
 evaluation:
@@ -121,6 +124,10 @@ evaluation:
   prompt_style: sft_cot_hash
   answer_extraction: strict_then_flexible
   max_batches: 4
+  mid_eval_loss_only:
+    enabled: true
+    every_n_steps: 50
+    max_batches: 4
   compute_accuracy: true
   accuracy_during_training: false
   accuracy_max_samples: null

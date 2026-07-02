@@ -22,6 +22,7 @@ RANK_HISTORY_FIELDS = [
     "budget_error_ratio",
     "rank_distance_from_initial",
     "rank_distance_from_preallocation",
+    "latest_mid_eval_loss",
 ]
 
 
@@ -42,6 +43,7 @@ def append_rank_history(
     target_budget: int,
     initial_allocation: Mapping[str, int],
     preallocation: Mapping[str, int] | None = None,
+    latest_mid_eval_loss: float | None = None,
 ) -> None:
     budget = budget_manager.describe(allocation, target_budget)
     distance_initial = rank_distance(allocation, initial_allocation)
@@ -57,11 +59,12 @@ def append_rank_history(
                     "max_rank": int(max_rank),
                     "module_score": module_scores.get(name),
                     "total_active_rank": budget["total_active_rank"],
-                    "total_active_params": budget["actual_budget"],
-                    "target_budget": budget["target_budget"],
+                    "total_active_params": budget["actual_budget_paramcount"],
+                    "target_budget": budget["target_budget_paramcount"],
                     "budget_error_ratio": budget["budget_error_ratio"],
                     "rank_distance_from_initial": distance_initial,
                     "rank_distance_from_preallocation": distance_pre,
+                    "latest_mid_eval_loss": latest_mid_eval_loss,
                 }
             )
 

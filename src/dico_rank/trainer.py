@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import math
 import random
 import time
 from pathlib import Path
@@ -35,10 +36,61 @@ from dico_rank.preallocation import (
     load_preallocation,
 )
 from dico_rank.rank_budget import BudgetManager, get_uniform_budget
+from dico_rank.rank_budget import compute_total_lora_params, module_rank_cost
 from dico_rank.utils import ensure_dir, set_seed, write_json
 
 
 LOGGER = logging.getLogger(__name__)
+PREALLOC_METHODS = {"dico_pre", "dico_predynamic"}
+
+
+def _budget_with_policy_fields(
+    budget: dict[str, Any],
+    method: str,
+    preallocation_eta: float | None,
+    generic_repair_applied: bool,
+) -> dict[str, Any]:
+    target_budget = int(budget.get("target_budget_paramcount", budget.get("target_budget")) or 0)
+    actual_budget = int(budget.get("actual_budget_paramcount", budget.get("actual_budget")) or 0)
+    budget_ratio = float(
+        budget.get(
+            "budget_ratio_paramcount",
+            budget.get(
+                "budget_ratio",
+                float(actual_budget / target_budget) if target_budget else (0.0 if actual_budget == 0 else 1.0),
+            ),
+        )
+    )
+    payload = {
+        **budget,
+        "target_budget_paramcount": target_budget,
+        "actual_budget_paramcount": actual_budget,
+        "budget_ratio_paramcount": budget_ratio,
+        "target_budget": target_budget,
+        "actual_budget": actual_budget,
+        "budget_ratio": budget_ratio,
+        "preallocation_eta": preallocation_eta,
+        "generic_repair_applied": bool(generic_repair_applied),
+    }
+    if method in PREALLOC_METHODS:
+        eta = float(preallocation_eta if preallocation_eta is not None else 0.98)
+        eta_reached = budget_ratio >= eta
+        interval_pass = eta_reached and budget_ratio <= 1.0 and not bool(budget.get("over_budget", False))
+        payload.update(
+            {
+                "budget_eta_reached": eta_reached,
+                "budget_interval_pass": interval_pass,
+            }
+        )
+    else:
+        payload.update(
+            {
+                "budget_eta_reached": None,
+                "budget_interval_pass": not bool(budget.get("over_budget", False))
+                and not bool(budget.get("warning")),
+            }
+        )
+    return payload
 
 
 def _resolve_path(project_root: Path, path: str | Path) -> Path:
@@ -82,6 +134,97 @@ def uniform_allocation(rank: int, module_names: list[str]) -> dict[str, int]:
     return {name: int(rank) for name in module_names}
 
 
+def _downscale_lora_allocation_to_ratio(
+    allocation: dict[str, int],
+    module_dims: dict[str, dict[str, int]],
+    target_budget: int,
+    target_ratio: float,
+    min_ratio: float = 0.97,
+) -> tuple[dict[str, int], dict[str, Any]]:
+    """Lower active ranks until the paramcount ratio falls into [min_ratio, target_ratio].
+
+    The tie-break favors high-cost modules first, then stable module names. This
+    keeps LoRA eta baselines budget-fair without changing LoRA weights or masks.
+    """
+
+    output = {name: int(rank) for name, rank in allocation.items()}
+    lower = int(math.ceil(float(min_ratio) * int(target_budget)))
+    upper = int(math.floor(float(target_ratio) * int(target_budget)))
+    costs = {name: module_rank_cost(module_dims[name]) for name in output}
+    details: list[dict[str, Any]] = []
+
+    def total() -> int:
+        return compute_total_lora_params(output, module_dims)
+
+    while total() > upper:
+        actual = total()
+        candidates = [
+            name
+            for name, rank in output.items()
+            if int(rank) > 0 and actual - costs[name] >= lower
+        ]
+        if not candidates:
+            break
+        name = max(candidates, key=lambda item: (costs[item], item))
+        before = output[name]
+        output[name] = before - 1
+        after_budget = total()
+        details.append(
+            {
+                "module_name": name,
+                "rank_before": before,
+                "rank_after": output[name],
+                "rank_cost": costs[name],
+                "actual_budget_after": after_budget,
+                "budget_ratio_after": float(after_budget / target_budget) if target_budget else 0.0,
+            }
+        )
+
+    actual = total()
+    return output, {
+        "lora_baseline_downscaled": bool(details),
+        "lora_baseline_target_ratio": float(target_ratio),
+        "lora_baseline_min_ratio": float(min_ratio),
+        "lora_baseline_actual_ratio": float(actual / target_budget) if target_budget else 0.0,
+        "lora_downscale_details": details,
+        "lora_downscale_interval_pass": lower <= actual <= upper,
+    }
+
+
+def _evidence_relaxation_summary(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not metadata:
+        return None
+    module_logs = metadata.get("module_logs") or []
+    selected_total = metadata.get("selected_evidence_count_total")
+    final_total = metadata.get("final_total_rank")
+    beyond_total = metadata.get("rank_beyond_selected_evidence_total")
+    modules_with_beyond = metadata.get("modules_with_rank_beyond_selected_evidence") or []
+    if selected_total is None or final_total is None or beyond_total is None:
+        selected_total = 0
+        final_total = 0
+        beyond_total = 0
+        modules_with_beyond = []
+        for row in module_logs:
+            selected = int(row.get("selected_evidence_count", row.get("selected_atom_count", 0)) or 0)
+            final_rank = int(row.get("final_rank", 0) or 0)
+            beyond = int(row.get("rank_beyond_selected_evidence", max(0, final_rank - selected)) or 0)
+            selected_total += selected
+            final_total += final_rank
+            beyond_total += beyond
+            if beyond > 0:
+                modules_with_beyond.append(row.get("module_name"))
+    final_total_int = int(final_total or 0)
+    beyond_total_int = int(beyond_total or 0)
+    return {
+        "selected_evidence_total": int(selected_total or 0),
+        "final_rank_total": final_total_int,
+        "rank_beyond_evidence_total": beyond_total_int,
+        "rank_beyond_evidence_ratio": float(beyond_total_int / final_total_int) if final_total_int else 0.0,
+        "modules_with_beyond": len(modules_with_beyond),
+        "modules_total": len(module_logs),
+    }
+
+
 def _preallocation_path(config: dict[str, Any], project_root: Path, rank: int) -> Path:
     save_dir = config.get("calibration", {}).get("save_dir", "outputs/preallocations")
     seed = int(config.get("calibration", {}).get("seed", config.get("seed", 42)))
@@ -95,7 +238,9 @@ def _preallocation_metadata_from_payload(
     source: str,
 ) -> dict[str, Any]:
     atom_mode = payload.get("atom_mode", "module_proxy")
-    return {
+    pre_cfg = config.get("preallocation", {})
+    budget_payload = payload.get("budget", {}) or {}
+    metadata = {
         "aggregation_mode": payload.get("aggregation_mode", config.get("preallocation", {}).get("aggregation_mode", "weighted_topk")),
         "allocation_method": payload.get("allocation_method", config.get("preallocation", {}).get("allocation_method")),
         "weighted_topk_k": payload.get("weighted_topk_k", config.get("preallocation", {}).get("weighted_topk_k", "auto")),
@@ -120,20 +265,54 @@ def _preallocation_metadata_from_payload(
         "budget_error_ratio": payload.get("budget_error_ratio", payload.get("budget", {}).get("budget_error_ratio")),
         "num_atoms": payload.get("num_atoms"),
         "num_selected_atoms": payload.get("num_selected_atoms"),
+        "eta": payload.get("eta", pre_cfg.get("eta", 0.98)),
+        "lambda_next": payload.get("lambda_next", pre_cfg.get("lambda_next", 1.0)),
+        "allow_rank_beyond_selected_evidence": payload.get(
+            "allow_rank_beyond_selected_evidence",
+            pre_cfg.get("allow_rank_beyond_selected_evidence", True),
+        ),
+        "rounding_method": payload.get("rounding_method", pre_cfg.get("rounding_method", "budget_aware_next_atom")),
+        "use_soft_tail": payload.get("use_soft_tail", pre_cfg.get("use_soft_tail", True)),
+        "target_budget": payload.get("target_budget", budget_payload.get("target_budget")),
+        "actual_budget": payload.get("actual_budget", budget_payload.get("actual_budget")),
+        "target_budget_paramcount": payload.get(
+            "target_budget_paramcount",
+            budget_payload.get("target_budget_paramcount", payload.get("target_budget", budget_payload.get("target_budget"))),
+        ),
+        "target_budget_ranksum": payload.get("target_budget_ranksum", budget_payload.get("target_budget_ranksum")),
+        "actual_budget_paramcount": payload.get(
+            "actual_budget_paramcount",
+            budget_payload.get("actual_budget_paramcount", payload.get("actual_budget", budget_payload.get("actual_budget"))),
+        ),
+        "actual_budget_ranksum": payload.get("actual_budget_ranksum", budget_payload.get("actual_budget_ranksum")),
+        "budget_ratio": payload.get("budget_ratio", budget_payload.get("budget_ratio")),
+        "budget_ratio_paramcount": payload.get("budget_ratio_paramcount", budget_payload.get("budget_ratio_paramcount")),
+        "budget_ratio_ranksum": payload.get("budget_ratio_ranksum", budget_payload.get("budget_ratio_ranksum")),
+        "selected_evidence_count_total": payload.get("selected_evidence_count_total"),
+        "final_total_rank": payload.get("final_total_rank"),
+        "rank_beyond_selected_evidence_total": payload.get("rank_beyond_selected_evidence_total"),
+        "modules_with_rank_beyond_selected_evidence": payload.get("modules_with_rank_beyond_selected_evidence"),
+        "cache_incompatible_reasons": payload.get("cache_incompatible_reasons"),
     }
+    if metadata["budget_ratio"] is None and metadata["target_budget"]:
+        metadata["budget_ratio"] = float((metadata["actual_budget"] or 0) / metadata["target_budget"])
+    if metadata["budget_ratio_paramcount"] is None:
+        metadata["budget_ratio_paramcount"] = metadata["budget_ratio"]
+    return metadata
 
 
-def _preallocation_cache_is_compatible(
+def _preallocation_cache_incompatible_reasons(
     payload: dict[str, Any],
     config: dict[str, Any],
     module_names: list[str],
     module_dims: dict[str, dict[str, int]],
-) -> bool:
+) -> list[str]:
+    reasons: list[str] = []
     if "rank_allocation" not in payload:
-        return False
+        reasons.append("missing_rank_allocation")
     rank_payload = payload.get("rank_allocation") or {}
-    if set(rank_payload.keys()) != set(module_names):
-        return False
+    if "rank_allocation" in payload and set(rank_payload.keys()) != set(module_names):
+        reasons.append("module_set_mismatch")
     cached_dims = payload.get("module_dims")
     if cached_dims is not None:
         normalized_cached = {
@@ -142,10 +321,16 @@ def _preallocation_cache_is_compatible(
             if "in_dim" in dims and "out_dim" in dims
         }
         if normalized_cached != module_dims:
-            return False
+            reasons.append("module_dims_mismatch")
     expected_context = build_preallocation_cache_context(config, module_names, module_dims)
-    if payload.get("cache_context") != expected_context:
-        return False
+    cached_context = payload.get("cache_context")
+    if cached_context != expected_context:
+        reasons.append("cache_context_mismatch")
+        cached_pre = (cached_context or {}).get("preallocation", {}) if isinstance(cached_context, dict) else {}
+        expected_pre = expected_context.get("preallocation", {})
+        for key, expected_value in expected_pre.items():
+            if cached_pre.get(key) != expected_value:
+                reasons.append(f"cache_context.preallocation.{key}_mismatch")
     pre_cfg = config.get("preallocation", {})
     expected = {
         "atom_mode": pre_cfg.get("atom_mode", pre_cfg.get("fallback_atom_mode", "module_proxy")),
@@ -158,8 +343,29 @@ def _preallocation_cache_is_compatible(
         if payload_value is None and key == "atom_mode":
             payload_value = (payload.get("cache_context") or {}).get("preallocation", {}).get("atom_mode")
         if payload_value != value:
-            return False
-    return bool(payload.get("module_logs"))
+            reasons.append(f"{key}_mismatch")
+    if not payload.get("module_logs"):
+        reasons.append("missing_module_logs")
+    return reasons
+
+
+def _preallocation_cache_incompatible_reason(
+    payload: dict[str, Any],
+    config: dict[str, Any],
+    module_names: list[str],
+    module_dims: dict[str, dict[str, int]],
+) -> str | None:
+    reasons = _preallocation_cache_incompatible_reasons(payload, config, module_names, module_dims)
+    return reasons[0] if reasons else None
+
+
+def _preallocation_cache_is_compatible(
+    payload: dict[str, Any],
+    config: dict[str, Any],
+    module_names: list[str],
+    module_dims: dict[str, dict[str, int]],
+) -> bool:
+    return not _preallocation_cache_incompatible_reasons(payload, config, module_names, module_dims)
 
 
 def load_or_build_preallocation(
@@ -174,12 +380,33 @@ def load_or_build_preallocation(
 ) -> tuple[dict[str, int], dict[str, Any]]:
     rank = int(config["rank"])
     path = _preallocation_path(config, project_root, rank)
+    cache_diagnostics = {
+        "cache_hit": path.exists(),
+        "cache_compatible": False,
+        "cache_incompatible_reason": "cache_missing",
+        "cache_incompatible_reasons": ["cache_missing"],
+    }
     if path.exists():
         payload = load_preallocation(path)
-        if _preallocation_cache_is_compatible(payload, config, module_names, module_dims):
+        incompatible_reasons = _preallocation_cache_incompatible_reasons(payload, config, module_names, module_dims)
+        if not incompatible_reasons:
             metadata = _preallocation_metadata_from_payload(payload, config, path, source="cache")
+            metadata.update(
+                {
+                    "cache_hit": True,
+                    "cache_compatible": True,
+                    "cache_incompatible_reason": None,
+                    "cache_incompatible_reasons": [],
+                }
+            )
             rank_payload = payload["rank_allocation"]
             return {name: int(value) for name, value in rank_payload.items()}, metadata
+        cache_diagnostics = {
+            "cache_hit": True,
+            "cache_compatible": False,
+            "cache_incompatible_reason": incompatible_reasons[0],
+            "cache_incompatible_reasons": incompatible_reasons,
+        }
 
     allocator = DiCoPreAllocator(
         model=model,
@@ -193,6 +420,7 @@ def load_or_build_preallocation(
     result = allocator.allocate(target_budget)
     allocator.save(path, result)
     metadata = _preallocation_metadata_from_payload(result.to_dict(preallocation_path=str(path)), config, path, source="computed")
+    metadata.update(cache_diagnostics)
     return result.rank_allocation, metadata
 
 
@@ -329,7 +557,16 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
     batch_size = int(training_cfg.get("batch_size", 1))
 
     rank = int(config["rank"])
-    max_rank = int(rank * config.get("lora", {}).get("max_rank_multiplier", 2))
+    lora_max_mult = float(config.get("lora", {}).get("max_rank_multiplier", 2.0))
+    pre_max_mult = float(config.get("preallocation", {}).get("r_max_multiplier", 2.0))
+    dyn_max_mult = float(config.get("dynamic", {}).get("r_max_multiplier", 2.0))
+    
+    if lora_max_mult < pre_max_mult:
+        raise ValueError(f"lora.max_rank_multiplier ({lora_max_mult}) cannot be smaller than preallocation.r_max_multiplier ({pre_max_mult})")
+    if lora_max_mult < dyn_max_mult:
+        raise ValueError(f"lora.max_rank_multiplier ({lora_max_mult}) cannot be smaller than dynamic.r_max_multiplier ({dyn_max_mult})")
+        
+    max_rank = int(rank * lora_max_mult)
     budget_cfg = config.get("budget", {})
     budget_info = get_uniform_budget(
         rank,
@@ -342,9 +579,26 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
     method = config["method"]
     preallocation_metadata = None
     preallocation = None
+    lora_downscale_metadata: dict[str, Any] = {
+        "lora_baseline_downscaled": False,
+        "lora_baseline_target_ratio": None,
+        "lora_baseline_min_ratio": None,
+        "lora_baseline_actual_ratio": None,
+        "lora_downscale_details": [],
+        "lora_downscale_interval_pass": None,
+    }
     if method in {"lora", "dico_dynamic"}:
         initial_allocation = uniform_allocation(rank, module_names)
-    elif method in {"dico_pre", "dico_predynamic"}:
+        enforce_target_ratio = float(budget_cfg.get("enforce_target_ratio", 1.0))
+        if method == "lora" and enforce_target_ratio < 1.0:
+            initial_allocation, lora_downscale_metadata = _downscale_lora_allocation_to_ratio(
+                initial_allocation,
+                module_dims,
+                target_budget,
+                target_ratio=enforce_target_ratio,
+                min_ratio=float(budget_cfg.get("enforce_min_ratio", 0.97)),
+            )
+    elif method in PREALLOC_METHODS:
         calibration_batches = _build_calibration_batches(
             train_records,
             collator,
@@ -385,19 +639,76 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         module_dims,
         warning_threshold=float(budget_cfg.get("warning_threshold", 0.01)),
     )
-    repaired = budget_manager.repair(
-        initial_allocation,
-        target_budget,
-        r_min=int(config.get("preallocation", {}).get("r_min", 0)),
-        r_max=max_rank,
-    )
-    initial_allocation = repaired.allocation
-    if method == "dico_predynamic":
-        preallocation = dict(initial_allocation)
-    write_json(output_dir / "budget.json", repaired.budget.to_dict())
+    generic_repair_applied = False
+    preallocation_eta = float(config.get("preallocation", {}).get("eta", 0.98)) if method in PREALLOC_METHODS else None
+    if method in PREALLOC_METHODS:
+        budget_payload = budget_manager.describe(initial_allocation, target_budget)
+        if bool(budget_payload.get("over_budget", False)):
+            raise ValueError(
+                "DiCo preallocation exceeds target budget. "
+                "This should be fixed inside the DiCo allocator, "
+                "not by generic BudgetManager.repair(...)."
+            )
+        budget_payload = _budget_with_policy_fields(
+            budget_payload,
+            method=method,
+            preallocation_eta=preallocation_eta,
+            generic_repair_applied=False,
+        )
+        if not budget_payload["budget_eta_reached"]:
+            LOGGER.warning(
+                "dico_preallocation_below_eta experiment=%s actual=%s eta_target=%.1f target=%s budget_ratio=%.6f",
+                experiment_name,
+                budget_payload["actual_budget"],
+                float(preallocation_eta) * target_budget,
+                target_budget,
+                budget_payload["budget_ratio"],
+            )
+        if preallocation_metadata is not None:
+            preallocation_metadata.update(
+                {
+                    "target_budget": budget_payload["target_budget"],
+                    "actual_budget": budget_payload["actual_budget"],
+                    "target_budget_paramcount": budget_payload["target_budget_paramcount"],
+                    "actual_budget_paramcount": budget_payload["actual_budget_paramcount"],
+                    "budget_ratio_paramcount": budget_payload["budget_ratio_paramcount"],
+                    "budget_ratio": budget_payload["budget_ratio"],
+                    "preallocation_eta": preallocation_eta,
+                    "budget_eta_reached": budget_payload["budget_eta_reached"],
+                    "budget_interval_pass": budget_payload["budget_interval_pass"],
+                    "generic_repair_applied": False,
+                }
+            )
+    else:
+        enforce_target_ratio = float(budget_cfg.get("enforce_target_ratio", 1.0))
+        if method == "lora" and enforce_target_ratio < 1.0:
+            generic_repair_applied = False
+            budget_payload = _budget_with_policy_fields(
+                budget_manager.describe(initial_allocation, target_budget),
+                method=method,
+                preallocation_eta=None,
+                generic_repair_applied=False,
+            )
+        else:
+            repaired = budget_manager.repair(
+                initial_allocation,
+                target_budget,
+                r_min=int(config.get("preallocation", {}).get("r_min", 0)),
+                r_max=max_rank,
+            )
+            initial_allocation = repaired.allocation
+            generic_repair_applied = True
+            budget_payload = _budget_with_policy_fields(
+                repaired.budget.to_dict(),
+                method=method,
+                preallocation_eta=None,
+                generic_repair_applied=True,
+            )
+    budget_payload.update(lora_downscale_metadata)
+    write_json(output_dir / "budget.json", budget_payload)
     initial_rank_payload: dict[str, Any] = {
         "rank_allocation": initial_allocation,
-        "budget_error_ratio": repaired.budget.budget_error_ratio,
+        **budget_payload,
     }
     if preallocation_metadata is not None:
         initial_rank_payload.update(
@@ -408,6 +719,32 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
                 "use_cost_aware_allocation": preallocation_metadata.get("use_cost_aware_allocation"),
                 "atom_mode": preallocation_metadata.get("atom_mode"),
                 "atom_mode_limitation": preallocation_metadata.get("atom_mode_limitation"),
+                "allocation_method": preallocation_metadata.get("allocation_method"),
+                "eta": preallocation_metadata.get("eta", preallocation_eta),
+                "lambda_next": preallocation_metadata.get("lambda_next"),
+                "allow_rank_beyond_selected_evidence": preallocation_metadata.get(
+                    "allow_rank_beyond_selected_evidence"
+                ),
+                "rounding_method": preallocation_metadata.get("rounding_method"),
+                "use_soft_tail": preallocation_metadata.get("use_soft_tail"),
+                "cache_hit": preallocation_metadata.get("cache_hit"),
+                "cache_compatible": preallocation_metadata.get("cache_compatible"),
+                "cache_incompatible_reason": preallocation_metadata.get("cache_incompatible_reason"),
+                "cache_incompatible_reasons": preallocation_metadata.get("cache_incompatible_reasons"),
+                "target_budget_paramcount": preallocation_metadata.get("target_budget_paramcount"),
+                "target_budget_ranksum": preallocation_metadata.get("target_budget_ranksum"),
+                "actual_budget_paramcount": preallocation_metadata.get("actual_budget_paramcount"),
+                "actual_budget_ranksum": preallocation_metadata.get("actual_budget_ranksum"),
+                "budget_ratio_paramcount": preallocation_metadata.get("budget_ratio_paramcount"),
+                "budget_ratio_ranksum": preallocation_metadata.get("budget_ratio_ranksum"),
+                "selected_evidence_count_total": preallocation_metadata.get("selected_evidence_count_total"),
+                "final_total_rank": preallocation_metadata.get("final_total_rank"),
+                "rank_beyond_selected_evidence_total": preallocation_metadata.get(
+                    "rank_beyond_selected_evidence_total"
+                ),
+                "modules_with_rank_beyond_selected_evidence": preallocation_metadata.get(
+                    "modules_with_rank_beyond_selected_evidence"
+                ),
             }
         )
     write_json(output_dir / "rank_allocation_initial.json", initial_rank_payload)
@@ -460,6 +797,7 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         target_budget,
         initial_allocation,
         preallocation,
+        latest_mid_eval_loss=None,
     )
 
     max_steps = int(training_cfg.get("max_steps", 1000))
@@ -470,6 +808,16 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
     model.train()
     running_loss = 0.0
     running_loss_observations = 0
+    latest_mid_eval_loss: float | None = None
+    evaluation_cfg = config.get("evaluation", {})
+    mid_eval_cfg_raw = evaluation_cfg.get("mid_eval_loss_only", {"enabled": False})
+    if isinstance(mid_eval_cfg_raw, bool):
+        mid_eval_cfg = {"enabled": mid_eval_cfg_raw}
+    else:
+        mid_eval_cfg = dict(mid_eval_cfg_raw or {})
+    mid_eval_enabled = bool(mid_eval_cfg.get("enabled", False))
+    mid_eval_every = max(1, int(mid_eval_cfg.get("every_n_steps", 50)))
+    mid_eval_max_batches = int(mid_eval_cfg.get("max_batches", evaluation_cfg.get("max_batches", 4)))
     optimizer.zero_grad(set_to_none=True)
     global_step = 0
     micro_step = 0
@@ -520,6 +868,7 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
                 target_budget,
                 initial_allocation,
                 preallocation,
+                latest_mid_eval_loss=latest_mid_eval_loss,
             )
 
         if global_step % logging_steps == 0 or global_step == 1:
@@ -552,12 +901,51 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
             running_loss = 0.0
             running_loss_observations = 0
 
+        if mid_eval_enabled and global_step < max_steps and global_step % mid_eval_every == 0:
+            mid_eval_started_at = time.perf_counter()
+            mid_eval = evaluate_loss(
+                model,
+                eval_records,
+                collator,
+                batch_size=batch_size,
+                device=input_device,
+                max_batches=mid_eval_max_batches,
+            )
+            latest_mid_eval_loss = float(mid_eval["eval_loss"])
+            elapsed_sec = time.perf_counter() - run_started_at
+            log_train(
+                output_dir / "train_log.jsonl",
+                {
+                    "event": "mid_eval_loss",
+                    "step": global_step,
+                    "max_steps": max_steps,
+                    "elapsed_sec": elapsed_sec,
+                    "eval_elapsed_sec": time.perf_counter() - mid_eval_started_at,
+                    "eval_loss": latest_mid_eval_loss,
+                    "eval_max_batches": mid_eval_max_batches,
+                },
+            )
+            LOGGER.info(
+                "mid_eval_loss experiment=%s step=%d/%d eval_loss=%.6f elapsed_sec=%.1f",
+                experiment_name,
+                global_step,
+                max_steps,
+                latest_mid_eval_loss,
+                elapsed_sec,
+            )
+
     final_allocation = (
         dynamic_allocator.current_allocation if dynamic_allocator is not None else initial_allocation
     )
     LOGGER.info("training_complete experiment=%s steps=%d", experiment_name, global_step)
     write_json(output_dir / "rank_allocation_final.json", final_allocation)
-    final_budget = budget_manager.describe(final_allocation, target_budget)
+    final_budget = _budget_with_policy_fields(
+        budget_manager.describe(final_allocation, target_budget),
+        method=method,
+        preallocation_eta=preallocation_eta,
+        generic_repair_applied=generic_repair_applied,
+    )
+    final_budget.update(lora_downscale_metadata)
     write_json(output_dir / "budget.json", final_budget)
     save_masked_lora_state(output_dir / "masked_lora_state.pt", model)
     LOGGER.info("final_loss_start experiment=%s", experiment_name)
@@ -576,7 +964,6 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         final_eval["eval_loss"],
         time.perf_counter() - final_loss_started_at,
     )
-    evaluation_cfg = config.get("evaluation", {})
     if evaluation_cfg.get("compute_accuracy", True):
         accuracy_samples = evaluation_cfg.get("accuracy_max_samples", data_cfg.get("eval_limit"))
         LOGGER.info(
@@ -639,8 +1026,10 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         "experiment": experiment_name,
         "method": method,
         "rank": rank,
+        "seed": int(config.get("seed", 42)),
         "atom_mode": preallocation_metadata.get("atom_mode") if preallocation_metadata else None,
         "preallocation": preallocation_metadata,
+        "evidence_relaxation": _evidence_relaxation_summary(preallocation_metadata),
         "final_eval_loss": final_eval["eval_loss"],
         "best_eval_loss": best_eval_loss,
         "final_eval_accuracy": final_eval.get("eval_accuracy"),
@@ -657,10 +1046,27 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         "target_budget": final_budget["target_budget"],
         "actual_budget": final_budget["actual_budget"],
         "total_params": final_budget["actual_budget"],
+        "budget_ratio": final_budget["budget_ratio"],
+        "target_budget_paramcount": final_budget["target_budget_paramcount"],
+        "target_budget_ranksum": final_budget.get("target_budget_ranksum"),
+        "actual_budget_paramcount": final_budget["actual_budget_paramcount"],
+        "actual_budget_ranksum": final_budget.get("actual_budget_ranksum"),
+        "budget_ratio_paramcount": final_budget["budget_ratio_paramcount"],
+        "budget_ratio_ranksum": final_budget.get("budget_ratio_ranksum"),
+        "preallocation_eta": final_budget["preallocation_eta"],
+        "budget_eta_reached": final_budget["budget_eta_reached"],
+        "budget_interval_pass": final_budget["budget_interval_pass"],
+        "generic_repair_applied": final_budget["generic_repair_applied"],
         "budget_error": final_budget["budget_error"],
         "budget_error_ratio": final_budget["budget_error_ratio"],
         "total_active_rank": final_budget["total_active_rank"],
         "trainable_params_physical": trainable_parameter_count(model),
+        "lora_baseline_downscaled": final_budget.get("lora_baseline_downscaled"),
+        "lora_baseline_target_ratio": final_budget.get("lora_baseline_target_ratio"),
+        "lora_baseline_min_ratio": final_budget.get("lora_baseline_min_ratio"),
+        "lora_baseline_actual_ratio": final_budget.get("lora_baseline_actual_ratio"),
+        "lora_downscale_details": final_budget.get("lora_downscale_details"),
+        "lora_downscale_interval_pass": final_budget.get("lora_downscale_interval_pass"),
     }
     write_json(output_dir / "metrics.json", metrics)
     append_rank_history(
@@ -673,6 +1079,7 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
         target_budget,
         initial_allocation,
         preallocation,
+        latest_mid_eval_loss=latest_mid_eval_loss,
     )
     LOGGER.info(
         "experiment_complete experiment=%s final_metric_name=%s final_metric=%s elapsed_sec=%.1f",

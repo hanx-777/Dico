@@ -13,19 +13,36 @@ class BudgetInfo:
     budget_error: int
     budget_error_ratio: float
     total_active_rank: int
+    target_budget_ranksum: int
+    budget_ratio_ranksum: float
     over_budget: bool = False
     warning: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "budget_mode": self.budget_mode,
+            "target_budget_paramcount": self.target_budget,
+            "target_budget_ranksum": self.target_budget_ranksum,
+            "actual_budget_paramcount": self.actual_budget,
+            "actual_budget_ranksum": self.total_active_rank,
+            "budget_ratio_paramcount": float(self.actual_budget / self.target_budget)
+            if self.target_budget
+            else (1.0 if self.actual_budget else 0.0),
+            "budget_ratio_ranksum": self.budget_ratio_ranksum,
             "target_budget": self.target_budget,
             "actual_budget": self.actual_budget,
+            "budget_ratio": float(self.actual_budget / self.target_budget)
+            if self.target_budget
+            else (1.0 if self.actual_budget else 0.0),
             "budget_error": self.budget_error,
             "budget_error_ratio": self.budget_error_ratio,
             "total_active_rank": self.total_active_rank,
             "over_budget": self.over_budget,
             "warning": self.warning,
+            "budget_units_note": (
+                "target_budget/actual_budget/budget_ratio are backward-compatible "
+                "aliases for *_paramcount; ranksum fields report sum_m r_m."
+            ),
         }
 
 
@@ -85,20 +102,36 @@ def _budget_info(
     module_dims: Mapping[str, Mapping[str, Any]],
     budget_mode: str = "equal_trainable_params",
     warning_threshold: float = 0.01,
+    target_rank_sum: int | None = None,
 ) -> BudgetInfo:
     actual = compute_total_lora_params(allocation, module_dims)
-    error = int(target_budget) - int(actual)
-    over_budget = error < 0
-    ratio = float(abs(error) / target_budget) if target_budget else (1.0 if actual else 0.0)
+    error = int(actual) - int(target_budget)
+    over_budget = error > 0
+    ratio = float(error / target_budget) if target_budget else (1.0 if actual else 0.0)
+    actual_rank_sum = sum(int(v) for v in allocation.values())
+    if target_rank_sum is None:
+        target_rank_sum = actual_rank_sum if int(actual) == int(target_budget) else 0
+        if target_rank_sum == 0 and module_dims:
+            costs = [module_rank_cost(dims) for dims in module_dims.values()]
+            cost_sum = sum(costs)
+            if cost_sum > 0 and int(target_budget) % cost_sum == 0:
+                uniform_rank = int(target_budget) // cost_sum
+                target_rank_sum = uniform_rank * len(costs)
+            elif costs and len(set(costs)) == 1:
+                target_rank_sum = int(target_budget) // costs[0]
+    target_rank_sum = int(target_rank_sum or 0)
+    ratio_ranksum = float(actual_rank_sum / target_rank_sum) if target_rank_sum else 0.0
     return BudgetInfo(
         budget_mode=budget_mode,
         target_budget=int(target_budget),
         actual_budget=int(actual),
         budget_error=int(error),
         budget_error_ratio=ratio,
-        total_active_rank=sum(int(v) for v in allocation.values()),
+        total_active_rank=actual_rank_sum,
+        target_budget_ranksum=target_rank_sum,
+        budget_ratio_ranksum=ratio_ranksum,
         over_budget=over_budget,
-        warning=_warning_for_error(ratio, warning_threshold, over_budget=over_budget),
+        warning=_warning_for_error(abs(ratio), warning_threshold, over_budget=over_budget),
     )
 
 
@@ -117,6 +150,7 @@ def get_uniform_budget(
         module_dims=module_dims,
         budget_mode=budget_mode,
         warning_threshold=warning_threshold,
+        target_rank_sum=sum(int(v) for v in allocation.values()),
     )
 
 
@@ -362,15 +396,14 @@ def allocate_by_evidence_aware_utility(
     lambda_next: float,
     r_min: int,
     r_max: int,
-    allow_rank_beyond_selected_evidence: bool = False,
+    allow_rank_beyond_selected_evidence: bool = True,
     budget_mode: str = "equal_trainable_params",
     warning_threshold: float = 0.01,
 ) -> WeightedAllocationResult:
     """Allocate integer ranks while respecting selected evidence counts.
 
     This is the v0.2.6 path: continuous module demand is computed from selected
-    evidence utilities, and rounding may not create ranks unsupported by
-    selected atoms unless explicitly configured.
+    evidence utilities.
     """
 
     module_names = list(module_dims.keys())
@@ -468,6 +501,8 @@ def allocate_by_evidence_aware_utility(
     module_logs = []
     for name in module_names:
         rank = allocation[name]
+        selected_count = len(selected[name])
+        module_budget = int(rank) * costs[name]
         next_utility = selected[name][rank] if rank < len(selected[name]) else None
         fractional = max(0.0, continuous[name] - math.floor(continuous[name]))
         add_gain = (
@@ -484,13 +519,16 @@ def allocate_by_evidence_aware_utility(
                 "r_tilde": continuous[name],
                 "floor_rank": int(max(0, math.floor(continuous[name]))),
                 "final_rank": rank,
-                "selected_atom_count": len(selected[name]),
+                "selected_atom_count": selected_count,
+                "selected_evidence_count": selected_count,
                 "selected_atom_utilities": selected[name],
+                "rank_beyond_selected_evidence": max(0, int(rank) - selected_count),
                 "fractional_remainder": fractional,
                 "next_atom_utility": next_utility,
                 "add_gain": add_gain,
                 "allow_rank_beyond_selected_evidence": bool(allow_rank_beyond_selected_evidence),
-                "final_parameter_count": int(rank) * costs[name],
+                "final_parameter_count": module_budget,
+                "final_budget": module_budget,
             }
         )
     return WeightedAllocationResult(allocation=allocation, budget=info, module_logs=module_logs)
