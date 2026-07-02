@@ -43,7 +43,8 @@ def test_lora_eta98_and_ablation_configs_load():
         "dico_predynamic_r8_move20.yaml",
     }
     ablation_dir = root / "configs" / "experiments" / "ablations"
-    assert expected_ablations == {path.name for path in ablation_dir.glob("*.yaml")}
+    found_ablations = {path.name for path in ablation_dir.glob("*.yaml") if not path.name.startswith("._")}
+    assert expected_ablations == found_ablations
     for name in expected_ablations:
         cfg = load_yaml(ablation_dir / name)
         assert cfg["rank"] == 8
