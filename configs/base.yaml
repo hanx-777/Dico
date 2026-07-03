@@ -70,7 +70,7 @@ calibration:
 preallocation:
   atom_mode: svd
   fallback_atom_mode: module_proxy
-  allocation_method: coverage_evidence_weighted
+  allocation_method: directional_budgeted
   aggregation_mode: weighted_log
   weighted_topk_k: auto
   top_k_atoms: 8
@@ -89,8 +89,6 @@ preallocation:
   epsilon_cov: 0.05
   use_soft_tail: true
   eta: 0.98
-  lambda_next: 1.0
-  rounding_method: budget_aware_next_atom
   allow_rank_beyond_selected_evidence: true
   evidence_selection:
     max_selected_atoms: auto

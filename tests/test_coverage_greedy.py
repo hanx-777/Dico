@@ -10,7 +10,7 @@ from dico_rank.atom_svd import (
 )
 
 
-def _atom(module: str, idx: int, profile: torch.Tensor, utility: float = 1.0) -> SvdAtomRecord:
+def _atom(module: str, idx: int, profile: torch.Tensor, utility: float = 1.0, alignment: float = 1.0) -> SvdAtomRecord:
     return SvdAtomRecord(
         module_name=module,
         atom_index=idx,
@@ -23,6 +23,7 @@ def _atom(module: str, idx: int, profile: torch.Tensor, utility: float = 1.0) ->
         lambda_cov=1.0,
         utility=utility,
         module_importance=1.0,
+        alignment=alignment,
     )
 
 
@@ -35,6 +36,14 @@ def test_coverage_residual_empty_same_and_orthogonal():
     basis = e1[:, None]
     assert coverage_residual(e1, basis) < 1e-6
     assert abs(coverage_residual(e2, basis) - 1.0) < 1e-6
+
+
+def test_coverage_residual_applies_sample_weights():
+    profile = torch.tensor([2.0, 2.0])
+    weights = torch.tensor([1.0, 0.25])
+    basis = torch.empty(2, 0)
+
+    assert coverage_residual(profile, basis, sample_weights=weights) == 5.0
 
 
 def test_prefix_stop_conditions_do_not_select_all_atoms():
@@ -59,6 +68,24 @@ def test_prefix_stop_conditions_do_not_select_all_atoms():
         selected_by_module.setdefault(atom.module_name, []).append(atom.atom_index)
     for indices in selected_by_module.values():
         assert indices == list(range(len(indices)))
+
+
+def test_coverage_candidates_are_not_restricted_to_module_prefix_order():
+    atoms = [
+        _atom("layer.0.q_proj", 0, torch.tensor([1.0, 0.0, 0.0]), alignment=0.01),
+        _atom("layer.0.q_proj", 1, torch.tensor([0.0, 1.0, 0.0]), alignment=1.0),
+        _atom("layer.1.q_proj", 0, torch.tensor([1.0, 0.0, 0.0]), alignment=0.01),
+    ]
+
+    selected = select_coverage_evidence(
+        atoms,
+        max_selected_atoms=1,
+        epsilon_cov=0.05,
+        sparse_stop_by_coverage=False,
+    )
+
+    assert [(atom.module_name, atom.atom_index) for atom in selected] == [("layer.0.q_proj", 1)]
+    assert selected[0].selected_coverage_gain > 0.0
 
 
 def test_weighted_log_aggregates_selected_evidence_only():

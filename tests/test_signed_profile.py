@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from dico_rank.atom_svd import (
+    direction_alignment,
     gradient_conflict,
     normalize_signed_profiles,
     _run_backward_and_collect,
@@ -16,7 +17,7 @@ def test_signed_projection_matches_explicit_response_matrix():
     u = torch.tensor([1.0, -2.0, 0.5])
     v = torch.tensor([0.25, -1.5])
 
-    explicit_response = sum(torch.outer(g, a) for g, a in zip(gradients, activations)) / 2.0
+    explicit_response = sum(torch.outer(g, a) for g, a in zip(gradients, activations))
     explicit = u @ explicit_response @ v
     streaming = signed_projection_from_token_factors(activations, gradients, u, v)
 
@@ -27,6 +28,14 @@ def test_gradient_conflict_edges():
     assert gradient_conflict(torch.tensor([1.0, 2.0, 3.0])) == 0.0
     assert gradient_conflict(torch.tensor([-1.0, -2.0, -3.0])) == 0.0
     assert gradient_conflict(torch.tensor([1.0, -1.0, 2.0, -2.0])) == 1.0
+
+
+def test_direction_alignment_uses_signed_net_over_absolute_mass():
+    aligned = direction_alignment(torch.tensor([1.0, 2.0, 3.0]))
+    conflicting = direction_alignment(torch.tensor([2.0, -1.0, -1.0]))
+
+    assert aligned == 1.0
+    assert conflicting == 0.0
 
 
 def test_profile_normalization_exact_small_centers_and_normalizes():
@@ -45,10 +54,10 @@ def test_profile_normalization_exact_small_centers_and_normalizes():
     assert torch.allclose(torch.linalg.norm(normalized, dim=0), torch.ones(2), atol=1e-6)
 
 
-def test_sample_response_norm_exact_small_matches_outer_product_average():
+def test_sample_response_norm_exact_small_matches_outer_product_sum():
     activations = torch.tensor([[1.0, 0.0], [0.0, 2.0]])
     gradients = torch.tensor([[3.0, 0.0], [0.0, 4.0]])
-    explicit_response = (torch.outer(gradients[0], activations[0]) + torch.outer(gradients[1], activations[1])) / 2.0
+    explicit_response = torch.outer(gradients[0], activations[0]) + torch.outer(gradients[1], activations[1])
 
     norm = sample_response_norm_from_token_factors(activations, gradients, mode="exact_small")
 

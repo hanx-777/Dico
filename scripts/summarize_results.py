@@ -17,9 +17,9 @@ from dico_rank.path_utils import resolve_project_path
 
 METHOD_LABELS = {
     "lora": "LoRA",
-    "dico_pre": "DiCo-Pre",
+    "dico_pre": "DiCo-eta",
     "dico_dynamic": "DiCo-Dynamic",
-    "dico_predynamic": "DiCo-PreDynamic",
+    "dico_predynamic": "DiCo-D",
 }
 
 

@@ -6,11 +6,7 @@ rank: 8
 
 rank_strategy:
   init: uniform
-  dynamic: false
 
 budget:
   enforce_target_ratio: 0.98
   enforce_min_ratio: 0.97
-
-dynamic:
-  enabled: false

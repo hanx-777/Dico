@@ -266,12 +266,10 @@ def _preallocation_metadata_from_payload(
         "num_atoms": payload.get("num_atoms"),
         "num_selected_atoms": payload.get("num_selected_atoms"),
         "eta": payload.get("eta", pre_cfg.get("eta", 0.98)),
-        "lambda_next": payload.get("lambda_next", pre_cfg.get("lambda_next", 1.0)),
         "allow_rank_beyond_selected_evidence": payload.get(
             "allow_rank_beyond_selected_evidence",
             pre_cfg.get("allow_rank_beyond_selected_evidence", True),
         ),
-        "rounding_method": payload.get("rounding_method", pre_cfg.get("rounding_method", "budget_aware_next_atom")),
         "use_soft_tail": payload.get("use_soft_tail", pre_cfg.get("use_soft_tail", True)),
         "target_budget": payload.get("target_budget", budget_payload.get("target_budget")),
         "actual_budget": payload.get("actual_budget", budget_payload.get("actual_budget")),
@@ -559,12 +557,9 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
     rank = int(config["rank"])
     lora_max_mult = float(config.get("lora", {}).get("max_rank_multiplier", 2.0))
     pre_max_mult = float(config.get("preallocation", {}).get("r_max_multiplier", 2.0))
-    dyn_max_mult = float(config.get("dynamic", {}).get("r_max_multiplier", 2.0))
     
     if lora_max_mult < pre_max_mult:
         raise ValueError(f"lora.max_rank_multiplier ({lora_max_mult}) cannot be smaller than preallocation.r_max_multiplier ({pre_max_mult})")
-    if lora_max_mult < dyn_max_mult:
-        raise ValueError(f"lora.max_rank_multiplier ({lora_max_mult}) cannot be smaller than dynamic.r_max_multiplier ({dyn_max_mult})")
         
     max_rank = int(rank * lora_max_mult)
     budget_cfg = config.get("budget", {})
@@ -721,11 +716,9 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
                 "atom_mode_limitation": preallocation_metadata.get("atom_mode_limitation"),
                 "allocation_method": preallocation_metadata.get("allocation_method"),
                 "eta": preallocation_metadata.get("eta", preallocation_eta),
-                "lambda_next": preallocation_metadata.get("lambda_next"),
                 "allow_rank_beyond_selected_evidence": preallocation_metadata.get(
                     "allow_rank_beyond_selected_evidence"
                 ),
-                "rounding_method": preallocation_metadata.get("rounding_method"),
                 "use_soft_tail": preallocation_metadata.get("use_soft_tail"),
                 "cache_hit": preallocation_metadata.get("cache_hit"),
                 "cache_compatible": preallocation_metadata.get("cache_compatible"),
@@ -779,7 +772,10 @@ def train(config: dict[str, Any]) -> dict[str, Any]:
             module_dims=module_dims,
             initial_allocation=initial_allocation,
             target_budget=target_budget,
-            config={**config.get("dynamic", {}), "warning_threshold": budget_cfg.get("warning_threshold", 0.01)},
+            config={
+                **config.get("dynamic", {}),
+                "warning_threshold": float(budget_cfg.get("warning_threshold", 0.01)),
+            },
             base_rank=rank,
             preallocation=preallocation,
             budget_manager=budget_manager,

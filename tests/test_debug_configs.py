@@ -5,14 +5,14 @@ from dico_rank.config import load_yaml
 
 def test_debug_configs_are_tiny_and_offline():
     root = Path(__file__).resolve().parents[1]
-    for name in ["tiny_lora.yaml", "tiny_dico_dynamic.yaml"]:
+    for name in ["tiny_lora.yaml", "tiny_dico_pre.yaml", "tiny_dico_dynamic.yaml"]:
         cfg = load_yaml(root / "configs" / "debug" / name)
         assert cfg["model"]["type"] == "tiny"
         assert cfg["data"]["source"] == "tiny"
         assert cfg["training"]["max_steps"] <= 3
 
 
-def test_all_eight_experiment_configs_exist():
+def test_main_experiment_configs_include_static_and_optional_dynamic_variants():
     root = Path(__file__).resolve().parents[1]
     expected = {
         "lora_r4.yaml",
@@ -56,3 +56,4 @@ def test_base_config_disables_training_time_eval_by_default():
     cfg = load_yaml(root / "configs" / "base.yaml")
 
     assert cfg["training"]["eval_steps"] == 0
+    assert cfg["dynamic"]["enabled"] is False

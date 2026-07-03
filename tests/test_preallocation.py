@@ -168,13 +168,11 @@ def test_preallocation_cache_rejected_when_budget_fair_semantics_change():
         "calibration": {"num_samples": 128, "seed": 42},
         "lora": {"target_modules": ["q_proj"]},
         "preallocation": {
-            "allocation_method": "coverage_evidence_weighted",
+            "allocation_method": "directional_budgeted",
             "aggregation_mode": "weighted_topk",
             "atom_weight_normalization": "none",
             "use_cost_aware_allocation": True,
             "eta": 0.95,
-            "lambda_next": 1.0,
-            "rounding_method": "budget_aware_next_atom",
             "use_soft_tail": True,
             "allow_rank_beyond_selected_evidence": False,
         },
@@ -206,13 +204,11 @@ def test_preallocation_cache_reports_all_semantic_mismatch_reasons():
         "calibration": {"num_samples": 128, "seed": 42},
         "lora": {"target_modules": ["q_proj"]},
         "preallocation": {
-            "allocation_method": "coverage_evidence_weighted",
+            "allocation_method": "directional_budgeted",
             "aggregation_mode": "weighted_topk",
             "atom_weight_normalization": "none",
             "use_cost_aware_allocation": True,
             "eta": 0.95,
-            "lambda_next": 1.0,
-            "rounding_method": "budget_aware_next_atom",
             "use_soft_tail": True,
             "allow_rank_beyond_selected_evidence": False,
         },
@@ -228,13 +224,11 @@ def test_preallocation_cache_reports_all_semantic_mismatch_reasons():
     }
     changed = json.loads(json.dumps(config))
     changed["preallocation"]["eta"] = 0.98
-    changed["preallocation"]["lambda_next"] = 2.0
     changed["preallocation"]["allow_rank_beyond_selected_evidence"] = True
 
     reasons = _preallocation_cache_incompatible_reasons(payload, changed, module_names, module_dims)
 
     assert "cache_context.preallocation.eta_mismatch" in reasons
-    assert "cache_context.preallocation.lambda_next_mismatch" in reasons
     assert "cache_context.preallocation.allow_rank_beyond_selected_evidence_mismatch" in reasons
 
 

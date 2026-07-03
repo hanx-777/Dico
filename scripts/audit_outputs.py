@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,10 +21,10 @@ EXPECTED_EXPERIMENTS = {
     "lora_r8": {"method": "lora", "rank": 8},
     "dico_pre_r4": {"method": "dico_pre", "rank": 4},
     "dico_pre_r8": {"method": "dico_pre", "rank": 8},
-    "dico_dynamic_r4": {"method": "dico_dynamic", "rank": 4, "move_ratio": 0.20},
-    "dico_dynamic_r8": {"method": "dico_dynamic", "rank": 8, "move_ratio": 0.20},
-    "dico_predynamic_r4": {"method": "dico_predynamic", "rank": 4, "move_ratio": 0.10},
-    "dico_predynamic_r8": {"method": "dico_predynamic", "rank": 8, "move_ratio": 0.10},
+    "dico_dynamic_r4": {"method": "dico_dynamic", "rank": 4},
+    "dico_dynamic_r8": {"method": "dico_dynamic", "rank": 8},
+    "dico_predynamic_r4": {"method": "dico_predynamic", "rank": 4},
+    "dico_predynamic_r8": {"method": "dico_predynamic", "rank": 8},
 }
 
 COMMON_FILES = [
@@ -127,15 +126,10 @@ def _audit_config(
 
     dynamic_cfg = config.get("dynamic", {})
     if expected["method"] in DYNAMIC_METHODS:
-        if not dynamic_cfg.get("enabled", False):
+        if dynamic_cfg.get("enabled") is not True:
             critical.append(f"{experiment}: dynamic.enabled must be true")
-        expected_move = float(expected["move_ratio"])
-        actual_move = _as_float(dynamic_cfg.get("move_ratio"))
-        if abs(actual_move - expected_move) > 1e-9:
-            critical.append(f"{experiment}: move_ratio={actual_move}, expected {expected_move}")
-    else:
-        if dynamic_cfg.get("enabled", False):
-            critical.append(f"{experiment}: dynamic.enabled should be false")
+    elif dynamic_cfg.get("enabled") is True:
+        critical.append(f"{experiment}: dynamic.enabled should be false for {expected['method']}")
 
     if expected["method"] in PREALLOC_METHODS:
         pre_cfg = config.get("preallocation", {})
@@ -331,7 +325,6 @@ def _audit_preallocation_metadata(
         "preallocation_path": preallocation_path,
         "eta": metadata.get("eta", metrics.get("preallocation_eta")),
         "allow_rank_beyond_selected_evidence": metadata.get("allow_rank_beyond_selected_evidence"),
-        "rounding_method": metadata.get("rounding_method"),
         "budget_ratio": metadata.get("budget_ratio", metrics.get("budget_ratio")),
         "budget_interval_pass": metadata.get("budget_interval_pass", metrics.get("budget_interval_pass")),
         "generic_repair_applied": metadata.get("generic_repair_applied", metrics.get("generic_repair_applied")),
@@ -370,54 +363,6 @@ def _audit_evidence_relaxation(
             "DiCo-98 budget-fair relaxation is large"
         )
     return {"evidence_relaxation": evidence}
-
-
-def _audit_dynamic(
-    experiment: str,
-    exp_dir: Path,
-    method: str,
-    config: dict[str, Any],
-    rank_history: list[dict[str, str]],
-    critical: list[str],
-    warnings: list[str],
-) -> dict[str, Any]:
-    dynamic_path = exp_dir / "dynamic_adjustments.jsonl"
-    adjustments = _read_jsonl(dynamic_path)
-    if method not in DYNAMIC_METHODS:
-        return {"dynamic_adjustment_count": len(adjustments), "dynamic_steps": [row.get("step") for row in adjustments]}
-
-    if not dynamic_path.exists():
-        critical.append(f"{experiment}: missing dynamic_adjustments.jsonl")
-        return {"dynamic_adjustment_count": 0, "dynamic_steps": []}
-    if not adjustments:
-        critical.append(f"{experiment}: dynamic_adjustments.jsonl is empty")
-
-    max_steps = _as_int(config.get("training", {}).get("max_steps"))
-    ratios = config.get("dynamic", {}).get("update_ratios", [0.2, 0.4, 0.6])
-    expected_steps = {max(1, math.ceil(float(ratio) * max_steps)) for ratio in ratios} if max_steps else set()
-    actual_steps = {_as_int(row.get("step")) for row in adjustments}
-    unexpected = sorted(step for step in actual_steps if expected_steps and step not in expected_steps)
-    if unexpected:
-        critical.append(f"{experiment}: dynamic adjustments at unexpected steps {unexpected}; expected {sorted(expected_steps)}")
-
-    if method == "dico_predynamic":
-        if any(row.get("rank_distance_from_preallocation") is None for row in adjustments):
-            critical.append(f"{experiment}: missing rank_distance_from_preallocation in dynamic adjustments")
-        history_has_distance = any(
-            row.get("rank_distance_from_preallocation") not in {None, ""}
-            for row in rank_history
-        )
-        if not history_has_distance:
-            critical.append(f"{experiment}: rank_history.csv missing rank_distance_from_preallocation values")
-    elif method == "dico_dynamic":
-        if any(row.get("rank_distance_from_initial") is None for row in adjustments):
-            warnings.append(f"{experiment}: dynamic adjustments missing rank_distance_from_initial")
-
-    return {
-        "dynamic_adjustment_count": len(adjustments),
-        "dynamic_steps": sorted(actual_steps),
-        "expected_dynamic_steps": sorted(expected_steps),
-    }
 
 
 def _audit_summary_files(output_dir: Path, warnings: list[str], multiseed: bool = False) -> dict[str, bool]:
@@ -489,8 +434,6 @@ def _audit_experiment_dir(
         initial_payload = _read_json(exp_dir / "rank_allocation_initial.json")
         initial_allocation = _rank_map(initial_payload)
         exp_report["initial_total_rank"] = sum(initial_allocation.values())
-        if expected["method"] == "dico_dynamic" and not _is_uniform(initial_allocation):
-            critical.append(f"{experiment}: DiCo-Dynamic initial allocation must be uniform")
         if expected["method"] in PREALLOC_METHODS:
             exp_report["preallocation"] = _audit_preallocation_metadata(
                 experiment,
@@ -513,17 +456,6 @@ def _audit_experiment_dir(
     if not rank_history:
         critical.append(f"{experiment}: rank_history.csv is empty or unreadable")
 
-    exp_report.update(
-        _audit_dynamic(
-            experiment,
-            exp_dir,
-            expected["method"],
-            config,
-            rank_history,
-            critical,
-            warnings,
-        )
-    )
     return exp_report
 
 
@@ -631,13 +563,13 @@ def write_report(output_dir: Path | str, report: dict[str, Any]) -> None:
             "",
             "## Experiments",
             "",
-            "| Experiment | Method | Rank | Eval Protocol | Eval Scope | Accuracy | Budget Error Ratio | Dynamic Steps |",
-            "| --- | --- | ---: | --- | --- | ---: | ---: | --- |",
+            "| Experiment | Method | Rank | Eval Protocol | Eval Scope | Accuracy | Budget Error Ratio |",
+            "| --- | --- | ---: | --- | --- | ---: | ---: |",
         ]
     )
     for name, row in report["experiments"].items():
         lines.append(
-            "| {name} | {method} | {rank} | {protocol} | {scope} | {accuracy} | {ratio} | {steps} |".format(
+            "| {name} | {method} | {rank} | {protocol} | {scope} | {accuracy} | {ratio} |".format(
                 name=name,
                 method=row.get("method", row.get("status", "")),
                 rank=row.get("rank", ""),
@@ -645,7 +577,6 @@ def write_report(output_dir: Path | str, report: dict[str, Any]) -> None:
                 scope=row.get("eval_scope", ""),
                 accuracy=row.get("final_eval_accuracy", ""),
                 ratio=row.get("budget_error_ratio", ""),
-                steps=row.get("dynamic_steps", ""),
             )
         )
     (output_dir / "audit_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from dico_rank.dynamic_allocation import rank_distance
 from dico_rank.rank_budget import BudgetManager
 from dico_rank.utils import append_jsonl, ensure_dir
 
@@ -24,6 +23,10 @@ RANK_HISTORY_FIELDS = [
     "rank_distance_from_preallocation",
     "latest_mid_eval_loss",
 ]
+
+
+def rank_distance(current: Mapping[str, int], reference: Mapping[str, int]) -> int:
+    return sum(abs(int(current.get(name, 0)) - int(reference.get(name, 0))) for name in reference)
 
 
 def init_rank_history(path: Path | str) -> None:

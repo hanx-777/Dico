@@ -1,0 +1,20 @@
+inherits: tiny_lora.yaml
+
+experiment_name: tiny_dico_pre
+method: dico_pre
+rank: 2
+
+calibration:
+  enabled: true
+  num_samples: 2
+  batch_size: 1
+
+preallocation:
+  atom_mode: svd
+  top_k_atoms: 2
+  sketch_dim: 4
+  sketch_oversample: 2
+  module_chunk_size: 4
+  eta: 0.0
+  r_min_multiplier: 0.0
+  r_max_multiplier: 2

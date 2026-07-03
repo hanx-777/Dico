@@ -52,11 +52,29 @@ def test_nohup_dry_run_uses_default_hf_mirror(tmp_path):
     assert "model.name_or_path=/m" in result.stdout
 
 
+def test_dry_run_lists_all_eight_main_configs(tmp_path):
+    result = run_script(["scripts/run_all_8.sh", "--override", "training.max_steps=2"], tmp_path)
+
+    expected = [
+        "configs/experiments/lora_r4.yaml",
+        "configs/experiments/lora_r8.yaml",
+        "configs/experiments/dico_pre_r4.yaml",
+        "configs/experiments/dico_pre_r8.yaml",
+        "configs/experiments/dico_dynamic_r4.yaml",
+        "configs/experiments/dico_dynamic_r8.yaml",
+        "configs/experiments/dico_predynamic_r4.yaml",
+        "configs/experiments/dico_predynamic_r8.yaml",
+    ]
+    for config in expected:
+        assert config in result.stdout
+
+
 def test_nohup_dry_run_without_train_args_has_no_empty_argument(tmp_path):
     result = run_script(["scripts/run_all_8.sh", "--nohup"], tmp_path)
 
     assert "nohup_mode=1" in result.stdout
-    assert result.stdout.rstrip().endswith("train_args:")
+    assert "train_args:\n" in result.stdout
+    assert "configs: configs/experiments/lora_r4.yaml" in result.stdout
 
 
 def test_output_dir_flag_overrides_project_output_override(tmp_path):

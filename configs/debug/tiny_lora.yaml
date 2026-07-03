@@ -29,9 +29,6 @@ calibration:
   enabled: false
   num_samples: 2
 
-dynamic:
-  enabled: false
-
 evaluation:
   max_batches: 1
   accuracy_max_samples: 2

@@ -6,7 +6,3 @@ rank: 8
 
 rank_strategy:
   init: uniform
-  dynamic: false
-
-dynamic:
-  enabled: false

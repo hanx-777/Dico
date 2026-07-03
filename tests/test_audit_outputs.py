@@ -24,13 +24,13 @@ def write_yaml(path: Path, payload: dict):
     path.write_text(yaml.safe_dump(payload), encoding="utf-8")
 
 
-def write_rank_history(path: Path, predynamic: bool = False):
+def write_rank_history(path: Path):
     path.write_text(
         "\n".join(
             [
                 "step,module_name,active_rank,max_rank,module_score,total_active_rank,total_active_params,target_budget,budget_error_ratio,rank_distance_from_initial,rank_distance_from_preallocation",
-                f"0,m,4,8,,4,32,32,0.0,0,{0 if predynamic else ''}",
-                f"2,m,4,8,1.0,4,32,32,0.0,0,{0 if predynamic else ''}",
+                "0,m,4,8,,4,32,32,0.0,0,0",
+                "2,m,4,8,1.0,4,32,32,0.0,0,0",
             ]
         )
         + "\n",
@@ -38,9 +38,11 @@ def write_rank_history(path: Path, predynamic: bool = False):
     )
 
 
-def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic: bool = False):
+def make_experiment(output_dir: Path, name: str, method: str, rank: int):
     exp_dir = output_dir / name
     exp_dir.mkdir(parents=True)
+    prealloc_methods = {"dico_pre", "dico_predynamic"}
+    dynamic_methods = {"dico_dynamic", "dico_predynamic"}
     write_yaml(
         exp_dir / "config_resolved.yaml",
         {
@@ -49,11 +51,6 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "rank": rank,
             "training": {"max_steps": 10},
             "data": {"eval_limit": 2},
-            "dynamic": {
-                "enabled": dynamic,
-                "move_ratio": 0.10 if method == "dico_predynamic" else 0.20,
-                "update_ratios": [0.2, 0.4, 0.6],
-            },
             "evaluation": {
                 "compute_accuracy": True,
                 "protocol": "internal_zero_shot",
@@ -67,6 +64,7 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
                 "eta": 0.98,
                 "allow_rank_beyond_selected_evidence": True,
             },
+            "dynamic": {"enabled": method in dynamic_methods},
         },
     )
     write_json(
@@ -78,10 +76,10 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "target_budget": 32,
             "actual_budget": 32,
             "budget_ratio": 1.0,
-            "preallocation_eta": 0.98 if method in {"dico_pre", "dico_predynamic"} else None,
+            "preallocation_eta": 0.98 if method in prealloc_methods else None,
             "budget_eta_reached": True,
             "budget_interval_pass": True,
-            "generic_repair_applied": method not in {"dico_pre", "dico_predynamic"},
+            "generic_repair_applied": method not in prealloc_methods,
             "budget_error_ratio": 0.0,
             "evaluation_protocol": "internal_zero_shot",
             "evaluation_prompt_style": "sft_cot_hash",
@@ -100,7 +98,7 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
                 "eta": 0.98,
                 "allow_rank_beyond_selected_evidence": True,
             }
-            if method in {"dico_pre", "dico_predynamic"}
+            if method in prealloc_methods
             else None,
         },
     )
@@ -111,7 +109,7 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "actual_budget": 32,
             "budget_ratio": 1.0,
             "budget_interval_pass": True,
-            "generic_repair_applied": method not in {"dico_pre", "dico_predynamic"},
+            "generic_repair_applied": method not in prealloc_methods,
             "budget_error_ratio": 0.0,
             "warning": None,
         },
@@ -131,13 +129,15 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
             "generic_repair_applied": False,
             "module_logs": [{"module_name": "m", "final_rank": rank}],
         }
-        if method in {"dico_pre", "dico_predynamic"}
+        if method in prealloc_methods
         else {"rank_allocation": {"m": rank}},
     )
     write_json(exp_dir / "rank_allocation_final.json", {"m": rank})
-    write_rank_history(exp_dir / "rank_history.csv", predynamic=(method == "dico_predynamic"))
+    write_rank_history(exp_dir / "rank_history.csv")
     (exp_dir / "train_log.jsonl").write_text("", encoding="utf-8")
     (exp_dir / "eval_log.jsonl").write_text("", encoding="utf-8")
+    if method in dynamic_methods:
+        (exp_dir / "dynamic_adjustments.jsonl").write_text("", encoding="utf-8")
     (exp_dir / "eval_predictions.jsonl").write_text(
         "\n".join(
             [
@@ -148,19 +148,6 @@ def make_experiment(output_dir: Path, name: str, method: str, rank: int, dynamic
         + "\n",
         encoding="utf-8",
     )
-    if dynamic:
-        (exp_dir / "dynamic_adjustments.jsonl").write_text(
-            "\n".join(
-                [
-                    json.dumps({"step": 2, "rank_distance_from_preallocation": 0 if method == "dico_predynamic" else None}),
-                    json.dumps({"step": 4, "rank_distance_from_preallocation": 0 if method == "dico_predynamic" else None}),
-                    json.dumps({"step": 6, "rank_distance_from_preallocation": 0 if method == "dico_predynamic" else None}),
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
 
 def test_audit_outputs_reports_missing_experiments_as_critical(tmp_path: Path):
     audit = load_audit_module()
@@ -180,7 +167,6 @@ def test_audit_outputs_accepts_complete_mock_outputs(tmp_path: Path):
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     write_json(tmp_path / "summary.json", {})
     (tmp_path / "summary.csv").write_text("experiment,method\n", encoding="utf-8")
@@ -190,7 +176,6 @@ def test_audit_outputs_accepts_complete_mock_outputs(tmp_path: Path):
 
     assert report["status"] in {"pass", "warning"}
     assert report["critical"] == []
-    assert report["experiments"]["dico_predynamic_r4"]["method"] == "dico_predynamic"
     assert report["experiments"]["lora_r4"]["evaluation_protocol"] == "internal_zero_shot"
     assert report["experiments"]["lora_r4"]["eval_scope"] == "2-sample subset"
 
@@ -204,7 +189,6 @@ def test_audit_outputs_checks_multiseed_coverage(tmp_path: Path):
                 f"{name}__seed{seed}",
                 meta["method"],
                 meta["rank"],
-                dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
             )
     (tmp_path / "summary.csv").write_text("experiment,n\n", encoding="utf-8")
     (tmp_path / "summary_per_run.csv").write_text("experiment,seed\n", encoding="utf-8")
@@ -226,7 +210,6 @@ def test_audit_outputs_warns_on_budget_error_ratio(tmp_path: Path):
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     budget_path = tmp_path / "lora_r4" / "budget.json"
     budget = json.loads(budget_path.read_text(encoding="utf-8"))
@@ -247,7 +230,6 @@ def test_audit_outputs_accepts_dico_pre_budget_ratio_at_eta(tmp_path: Path):
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     for filename in ["summary.csv", "summary.md"]:
         (tmp_path / filename).write_text("ok\n", encoding="utf-8")
@@ -345,7 +327,6 @@ def test_audit_outputs_marks_over_budget_as_critical(tmp_path: Path):
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     budget_path = tmp_path / "lora_r4" / "budget.json"
     budget = json.loads(budget_path.read_text(encoding="utf-8"))
@@ -368,7 +349,6 @@ def test_audit_outputs_warns_on_missing_evaluation_protocol(tmp_path: Path):
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     metrics_path = tmp_path / "lora_r4" / "metrics.json"
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
@@ -389,7 +369,6 @@ def test_audit_outputs_warns_when_prediction_count_mismatches_eval_total(tmp_pat
             name,
             meta["method"],
             meta["rank"],
-            dynamic=meta["method"] in {"dico_dynamic", "dico_predynamic"},
         )
     (tmp_path / "lora_r4" / "eval_predictions.jsonl").write_text(
         json.dumps({"question": "only one"}) + "\n",

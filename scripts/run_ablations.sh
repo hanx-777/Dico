@@ -66,7 +66,6 @@ CONFIGS=(
   configs/experiments/ablations/dico_pre_r8_eta100.yaml
   configs/experiments/ablations/dico_pre_r8_answer_full.yaml
   configs/experiments/ablations/dico_pre_r8_random.yaml
-  configs/experiments/ablations/dico_predynamic_r8_move20.yaml
 )
 
 experiment_name_from_config() {

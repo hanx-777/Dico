@@ -40,7 +40,7 @@ def _tiny_svd_config(tmp_path: Path) -> dict:
         "preallocation": {
             "atom_mode": "svd",
             "fallback_atom_mode": "module_proxy",
-            "allocation_method": "coverage_evidence_weighted",
+            "allocation_method": "directional_budgeted",
             "aggregation_mode": "weighted_log",
             "top_k_atoms": 2,
             "sketch_dim": 4,
@@ -58,8 +58,6 @@ def _tiny_svd_config(tmp_path: Path) -> dict:
             "epsilon_cov": 0.05,
             "use_soft_tail": True,
             "eta": 0.0,
-            "lambda_next": 1.0,
-            "rounding_method": "budget_aware_next_atom",
             "allow_rank_beyond_selected_evidence": False,
             "evidence_selection": {
                 "max_selected_atoms": "auto",
