@@ -1,0 +1,16 @@
+inherits: ../../base.yaml
+
+experiment_name: dico_pre_r8_alloc_prototype_bundle_layer_diffusion
+method: dico_pre
+rank: 8
+
+rank_strategy:
+  init: dico_pre
+
+preallocation:
+  aggregation_mode: weighted_log
+  atom_weight_normalization: none
+  use_cost_aware_allocation: true
+  rank_allocator:
+    atom_to_rank: prototype_bundle
+    smoothing: layer_diffusion

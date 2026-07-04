@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
+from dico_rank.rank_allocator import allocate_rank_pattern
+
 
 @dataclass(frozen=True)
 class BudgetInfo:
@@ -57,6 +59,7 @@ class WeightedAllocationResult:
     allocation: dict[str, int]
     budget: BudgetInfo
     module_logs: list[dict[str, Any]]
+    diagnostics: dict[str, Any] | None = None
 
 
 def _dim_value(dims: Mapping[str, Any], *names: str) -> int:
@@ -660,3 +663,47 @@ def allocate_by_directional_evidence(
             }
         )
     return WeightedAllocationResult(allocation=allocation, budget=info, module_logs=module_logs)
+
+
+def allocate_by_rank_allocator(
+    atom_logs: list[Mapping[str, Any]],
+    module_dims: Mapping[str, Mapping[str, Any]],
+    target_budget: int,
+    eta: float,
+    r_min: int,
+    r_max: int,
+    config: Mapping[str, Any] | None = None,
+    allow_rank_beyond_selected_evidence: bool = True,
+    budget_mode: str = "equal_trainable_params",
+    warning_threshold: float = 0.01,
+) -> WeightedAllocationResult:
+    """Allocate ranks with the composable DiCo rank allocator."""
+
+    module_names = list(module_dims.keys())
+    costs = {name: module_rank_cost(module_dims[name]) for name in module_names}
+    allocator_result = allocate_rank_pattern(
+        atom_logs=atom_logs,
+        module_dims=module_dims,
+        costs=costs,
+        target_budget=int(target_budget),
+        eta=float(eta),
+        r_min=int(r_min),
+        r_max=int(r_max),
+        allow_rank_beyond_selected_evidence=bool(allow_rank_beyond_selected_evidence),
+        config=config,
+    )
+    info = _budget_info(
+        allocator_result.allocation,
+        int(target_budget),
+        module_dims,
+        budget_mode=budget_mode,
+        warning_threshold=warning_threshold,
+    )
+    if allocator_result.warning:
+        info = replace(info, warning=allocator_result.warning)
+    return WeightedAllocationResult(
+        allocation=allocator_result.allocation,
+        budget=info,
+        module_logs=allocator_result.module_logs,
+        diagnostics=allocator_result.diagnostics,
+    )

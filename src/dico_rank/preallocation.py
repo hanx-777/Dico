@@ -16,7 +16,7 @@ from dico_rank.atom_svd import (
 )
 from dico_rank.rank_budget import (
     BudgetInfo,
-    allocate_by_directional_evidence,
+    allocate_by_rank_allocator,
     allocate_by_weighted_utility,
     compute_total_lora_params,
     module_rank_cost,
@@ -63,6 +63,7 @@ def build_preallocation_cache_context(
         "preallocation": {
             "atom_mode": pre_cfg.get("atom_mode", pre_cfg.get("fallback_atom_mode", "module_proxy")),
             "allocation_method": pre_cfg.get("allocation_method", "weighted"),
+            "rank_allocator": pre_cfg.get("rank_allocator"),
             "eta": pre_cfg.get("eta", 0.98),
             "allow_rank_beyond_selected_evidence": pre_cfg.get("allow_rank_beyond_selected_evidence", True),
             "use_soft_tail": pre_cfg.get("use_soft_tail", True),
@@ -477,14 +478,14 @@ class DiCoPreAllocator:
         atom_logs = [atom.to_log_dict() for atom in atoms]
         rank = int(self.config.get("rank", 1))
         r_max = self._r_max()
-        allocation = allocate_by_directional_evidence(
+        allocation = allocate_by_rank_allocator(
             atom_logs=atom_logs,
             module_dims=self.module_dims,
             target_budget=int(rank_budget),
             eta=float(self.pre_cfg.get("eta", 0.98)),
             r_min=max(0, int(rank * float(self.pre_cfg.get("r_min_multiplier", 0.0)))),
             r_max=r_max,
-            beta=float(self.pre_cfg.get("beta", 1.0)),
+            config=self.pre_cfg.get("rank_allocator"),
             allow_rank_beyond_selected_evidence=bool(self.pre_cfg.get("allow_rank_beyond_selected_evidence", True)),
             budget_mode=self.config.get("budget", {}).get("mode", "equal_trainable_params"),
             warning_threshold=float(self.config.get("budget", {}).get("warning_threshold", 0.01)),
@@ -509,6 +510,7 @@ class DiCoPreAllocator:
         full_diagnostics = {
             **diagnostics,
             "allocation_method": "directional_budgeted",
+            **(allocation.diagnostics or {}),
             "num_modules": len(self.module_names),
             "total_params": final_budget,
             "budget_ref": int(rank_budget),

@@ -157,6 +157,67 @@ def test_preallocation_cache_accepts_matching_context():
     assert _preallocation_cache_is_compatible(payload, config, module_names, module_dims)
 
 
+def test_preallocation_cache_context_records_rank_allocator_config():
+    module_names = ["a"]
+    module_dims = {"a": {"in_dim": 4, "out_dim": 4}}
+    config = {
+        "seed": 42,
+        "rank": 2,
+        "model": {"name_or_path": "/models/qwen"},
+        "data": {"dataset_name": "openai/gsm8k", "dataset_config": "main"},
+        "calibration": {"num_samples": 128, "seed": 42},
+        "lora": {"target_modules": ["q_proj"]},
+        "preallocation": {
+            "allocation_method": "directional_budgeted",
+            "rank_allocator": {
+                "atom_to_rank": "marginal_curve",
+                "smoothing": "layer_diffusion",
+            },
+        },
+    }
+
+    context = build_preallocation_cache_context(config, module_names, module_dims)
+
+    assert context["preallocation"]["rank_allocator"] == {
+        "atom_to_rank": "marginal_curve",
+        "smoothing": "layer_diffusion",
+    }
+
+
+def test_preallocation_cache_rejected_when_rank_allocator_changes():
+    module_names = ["a"]
+    module_dims = {"a": {"in_dim": 4, "out_dim": 4}}
+    config = {
+        "seed": 42,
+        "rank": 2,
+        "model": {"name_or_path": "/models/qwen"},
+        "data": {"dataset_name": "openai/gsm8k", "dataset_config": "main"},
+        "calibration": {"num_samples": 128, "seed": 42},
+        "lora": {"target_modules": ["q_proj"]},
+        "preallocation": {
+            "allocation_method": "directional_budgeted",
+            "rank_allocator": {
+                "atom_to_rank": "marginal_curve",
+                "smoothing": "layer_diffusion",
+            },
+        },
+    }
+    payload = {
+        "rank_allocation": {"a": 2},
+        "module_dims": module_dims,
+        "module_logs": [{"module_name": "a"}],
+        "aggregation_mode": "weighted_topk",
+        "atom_weight_normalization": "none",
+        "use_cost_aware_allocation": True,
+        "cache_context": build_preallocation_cache_context(config, module_names, module_dims),
+        "atom_mode": "module_proxy",
+    }
+    changed = json.loads(json.dumps(config))
+    changed["preallocation"]["rank_allocator"]["smoothing"] = "concentration_penalty"
+
+    assert not _preallocation_cache_is_compatible(payload, changed, module_names, module_dims)
+
+
 def test_preallocation_cache_rejected_when_budget_fair_semantics_change():
     module_names = ["a"]
     module_dims = {"a": {"in_dim": 4, "out_dim": 4}}

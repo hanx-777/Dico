@@ -128,14 +128,45 @@ preallocation:
   allow_rank_beyond_selected_evidence: true
   use_soft_tail: true
   use_cost_aware_allocation: true
+  rank_allocator:
+    atom_to_rank: marginal_curve
+    smoothing: layer_diffusion
+    utility:
+      align_gamma: 1.0
+      use_log1p: true
+      type_normalization: median
+    marginal_curve:
+      decay: sqrt
+      geometric_lambda: 0.75
+    prototype_bundle:
+      similarity_threshold: 0.8
+      residual_weight: 0.25
+    soft_slot:
+      temperature: 1.0
+      slot_decay: 0.15
+    cost_beta: 0.5
+    budget_guardrails:
+      max_rank_per_module: null
+      layer_cap_multiplier: 1.8
+      type_cap_multiplier: 2.0
+      type_budget_bounds: null
+    layer_diffusion:
+      kernel: [0.25, 0.50, 0.25]
+    concentration_penalty:
+      lambda: 0.02
 ```
 
 关键点：
 
-- DiCo allocator 自己负责预算公平分配。
+- DiCo allocator 自己负责预算公平分配，并保证 `actual_budget_paramcount <= target_budget_paramcount`。
+- `rank_allocator` 从 SVD atom logs 之后开始工作，不改变 upstream direction extraction、signed response profiling 或 coverage certification。
+- atom-to-rank 轴定义 atom evidence 如何映射为可购买 rank：`marginal_curve` 汇总每个模块的边际曲线，`prototype_bundle` 将相似 response profile 合并为 bundle，`soft_slot` 将 atom 支持分布到有 precedence 的 rank slot；`legacy_atom_purchase` 保留旧版 atom 直购行为。
+- smoothing 轴定义最终贪心选择时如何调节集中度或结构先验：`layer_diffusion` 在同类型相邻 layer 之间扩散边际证据，`budget_guardrails` 施加模块、layer、type cap，`concentration_penalty` 以软 HHI penalty 降低过度集中；`none` 用于关闭平滑。
+- 默认组合为 `marginal_curve + layer_diffusion`；legacy baseline 为 `legacy_atom_purchase + none`。
 - `rank_allocation_initial.json` 保存 DiCo allocator 原始输出。
 - `dico_pre` 的 `rank_allocation_final.json` 与 initial allocation 一致。
 - 如果 DiCo allocation 低于 eta，不由 trainer repair，只记录 warning。
+- preallocation cache context 包含完整 `preallocation.rank_allocator` 配置；只要 atom-to-rank、smoothing 或其子参数发生变化，旧 cache 会被判定为不兼容并重新构建。
 
 ## 6. Evidence Relaxation
 

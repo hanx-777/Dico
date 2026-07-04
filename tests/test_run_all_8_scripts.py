@@ -33,6 +33,7 @@ def test_shell_scripts_pass_bash_syntax_check():
         "scripts/run_all_8.sh",
         "scripts/run_all_8_experiments.sh",
         "scripts/run_all_8_nohup.sh",
+        "scripts/run_pre_allocator_3x3_2seed.sh",
         "scripts/env_hf_mirror.sh",
         "scripts/lib/hf_env.sh",
         "scripts/lib/runtime.sh",
@@ -134,3 +135,41 @@ def test_no_hf_mirror_does_not_set_endpoint(tmp_path):
     )
 
     assert "HF_ENDPOINT=\n" in result.stdout
+
+
+def test_pre_allocator_3x3_2seed_dry_run_lists_18_isolated_runs(tmp_path):
+    result = run_script(
+        [
+            "scripts/run_pre_allocator_3x3_2seed.sh",
+            "--output_dir",
+            "outputs_alloc",
+            "--no_hf_mirror",
+            "--override",
+            "training.max_steps=1",
+        ],
+        tmp_path,
+        extra_env={"SEEDS": "42 43"},
+    )
+
+    expected_configs = [
+        "dico_pre_r8_alloc_marginal_curve_budget_guardrails",
+        "dico_pre_r8_alloc_marginal_curve_layer_diffusion",
+        "dico_pre_r8_alloc_marginal_curve_concentration_penalty",
+        "dico_pre_r8_alloc_prototype_bundle_budget_guardrails",
+        "dico_pre_r8_alloc_prototype_bundle_layer_diffusion",
+        "dico_pre_r8_alloc_prototype_bundle_concentration_penalty",
+        "dico_pre_r8_alloc_soft_slot_budget_guardrails",
+        "dico_pre_r8_alloc_soft_slot_layer_diffusion",
+        "dico_pre_r8_alloc_soft_slot_concentration_penalty",
+    ]
+
+    assert result.stdout.count("run:") == 18
+    assert "seeds=42 43" in result.stdout
+    for name in expected_configs:
+        assert f"configs/experiments/allocator_3x3/{name}.yaml" in result.stdout
+        for seed in (42, 43):
+            assert f"experiment_name={name}__seed{seed}" in result.stdout
+            assert f"seed={seed}" in result.stdout
+            assert f"calibration.seed={seed}" in result.stdout
+            assert f"preallocation.sketch_seed={seed}" in result.stdout
+            assert f"calibration.save_dir=outputs_alloc/preallocations/{name}/seed{seed}" in result.stdout

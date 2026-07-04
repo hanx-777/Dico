@@ -45,7 +45,7 @@ DiCo 的基本想法是：LoRA 的每一个 rank 对应一个 rank-one 更新方
 2. 对每个目标模块用 streaming randomized sketch 近似提取 top-K SVD direction atoms。
 3. 为 atom 构造 signed sample profile，并计算 alignment 对齐度以折价样本间符号抵消。
 4. 用带 `w_i=1/T_i` 样本权重的 Per-Type coverage greedy 选择不冗余、对齐度高、效用较高的 atom evidence。
-5. 将认证方向作为带成本物品，按方向效用密度进行预算采购。
+5. 将认证后的 atom evidence 输入可组合 rank allocator：先通过 atom-to-rank 策略转换为模块级边际 rank 曲线，再通过 smoothing 策略约束或扩散边际证据，最终在 `actual_budget <= target_budget` 下贪心生成 rank pattern。
 6. 若认证方向不足以达到 eta 下界，则执行 Evidence Relaxation 并记录 relaxation ratio。
 7. 可选 DiCo-D 在标准 LoRA 训练中按 `dynamic.update_ratios` 做小幅 rank refinement，并记录 rank drift。
 
@@ -64,9 +64,24 @@ preallocation:
   allow_rank_beyond_selected_evidence: true
   atom_weight_normalization: none
   use_cost_aware_allocation: true
+  rank_allocator:
+    atom_to_rank: marginal_curve
+    smoothing: layer_diffusion
+    utility:
+      align_gamma: 1.0
+      use_log1p: true
+      type_normalization: median
+    marginal_curve:
+      decay: sqrt
+    layer_diffusion:
+      kernel: [0.25, 0.50, 0.25]
 ```
 
+`rank_allocator.atom_to_rank` 支持 `marginal_curve`、`prototype_bundle`、`soft_slot`，并保留 `legacy_atom_purchase` 作为旧版方向直购基线。`rank_allocator.smoothing` 支持 `layer_diffusion`、`budget_guardrails`、`concentration_penalty`，其中 `none` 用于关闭平滑或复现实验基线。推荐默认组合为 `marginal_curve + layer_diffusion`；推荐消融包括 `marginal_curve + none`、`marginal_curve + concentration_penalty`、`prototype_bundle + layer_diffusion`、`soft_slot + layer_diffusion`，legacy baseline 使用 `legacy_atom_purchase + none`。
+
 更完整的方法草稿见 [v0.2.7.md](v0.2.7.md)。
+
+rank allocator 当前代码实现细节见 [RANK_ALLOCATOR_IMPLEMENTATION.md](docs/RANK_ALLOCATOR_IMPLEMENTATION.md)。
 
 ## 目录结构
 
@@ -110,7 +125,8 @@ dico_rank_experiments/
 | `src/dico_rank/lora_masked.py` | Masked LoRA 层、rank mask、梯度 masking、inactive 参数恢复 |
 | `src/dico_rank/preallocation.py` | DiCo 预分配主逻辑，兼容 SVD atom 与 module proxy fallback |
 | `src/dico_rank/atom_svd.py` | SVD atom 提取、signed profile、per-type coverage certification |
-| `src/dico_rank/rank_budget.py` | LoRA 参数预算计算、预算修复、方向级预算采购 |
+| `src/dico_rank/rank_allocator.py` | atom evidence 到最终 rank pattern 的可组合 allocator，包含 atom-to-rank 与 smoothing 两个轴 |
+| `src/dico_rank/rank_budget.py` | LoRA 参数预算计算、预算修复、rank allocator API 兼容层 |
 | `src/dico_rank/dynamic_allocation.py` | 训练中 DiCo-Dynamic / DiCo-D rank refinement |
 | `src/dico_rank/evaluator.py` | eval loss 与 GSM8K exact-match generation accuracy |
 | `src/dico_rank/data.py` | GSM8K JSONL 读取、prompt 格式化、tokenization、tiny dataset |
@@ -242,6 +258,62 @@ python scripts/run_experiment.py \
 
 ```bash
 python scripts/build_preallocation.py --config configs/experiments/dico_pre_r4.yaml
+```
+
+## DiCo-Pre Allocator 3×3×2 实验
+
+只运行 DiCo-Pre r8 的 allocator ablation：3 个 atom-to-rank 方法、3 个 smoothing 方法、2 个 seed。
+
+本地配置与脚本测试：
+
+```bash
+cd /ai/lxw/lxw/dico_rank_experiments
+conda activate dico-rank
+PYTHONPATH=src pytest -q tests/test_debug_configs.py tests/test_run_all_8_scripts.py tests/test_rank_allocator.py
+PYTHONPATH=src pytest -q tests/test_budget*.py tests/test_*preallocation*.py tests/test_random_allocation.py
+```
+
+本地 dry-run 检查 18 条命令：
+
+```bash
+cd /ai/lxw/lxw/dico_rank_experiments
+conda activate dico-rank
+SEEDS="42 43" DRY_RUN=1 bash scripts/run_pre_allocator_3x3_2seed.sh \
+  --output_dir outputs_pre_allocator_3x3_2seed_dryrun \
+  --no_hf_mirror \
+  --override training.max_steps=1
+```
+
+正式前台运行：
+
+```bash
+SEEDS="42 43" bash scripts/run_pre_allocator_3x3_2seed.sh \
+  --output_dir outputs_pre_allocator_3x3_2seed
+```
+
+服务器后台 nohup 运行：
+
+```bash
+cd /ai/lxw/lxw/dico_rank_experiments
+conda activate dico-rank
+RUN_DIR=outputs_pre_allocator_3x3_2seed_$(date +%Y%m%d_%H%M%S)
+mkdir -p "$RUN_DIR/logs"
+SEEDS="42 43" nohup bash scripts/run_pre_allocator_3x3_2seed.sh \
+  --output_dir "$RUN_DIR" \
+  --log_dir "$RUN_DIR/logs" \
+  --override model.name_or_path=/ai/lxw/lxw/Qwen3-8B \
+  --override model.torch_dtype=bfloat16 \
+  --override training.batch_size=4 \
+  --override training.gradient_accumulation_steps=2 \
+  --override calibration.batch_size=4 \
+  > "$RUN_DIR/logs/pre_allocator_3x3_2seed.log" 2>&1 &
+echo $! > "$RUN_DIR/pre_allocator_3x3_2seed.pid"
+```
+
+本脚本只枚举 `configs/experiments/allocator_3x3/*.yaml`，不包含 LoRA、DiCo-Dynamic 或 PreDynamic。每个组合和 seed 使用独立 preallocation cache 目录：
+
+```text
+outputs_pre_allocator_3x3_2seed/preallocations/<experiment_name>/seed<seed>
 ```
 
 ## 一次运行 8 组实验

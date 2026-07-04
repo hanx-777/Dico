@@ -101,6 +101,32 @@ preallocation:
   coverage_lambda: 0.5
   r_min_multiplier: 0.25
   r_max_multiplier: 2
+  rank_allocator:
+    atom_to_rank: marginal_curve
+    smoothing: layer_diffusion
+    utility:
+      align_gamma: 1.0
+      use_log1p: true
+      type_normalization: median
+    marginal_curve:
+      decay: sqrt
+      geometric_lambda: 0.75
+    prototype_bundle:
+      similarity_threshold: 0.8
+      residual_weight: 0.25
+    soft_slot:
+      temperature: 1.0
+      slot_decay: 0.15
+    cost_beta: 0.5
+    budget_guardrails:
+      max_rank_per_module: null
+      layer_cap_multiplier: 1.8
+      type_cap_multiplier: 2.0
+      type_budget_bounds: null
+    layer_diffusion:
+      kernel: [0.25, 0.50, 0.25]
+    concentration_penalty:
+      lambda: 0.02
   save_atom_logs: true
 
 dynamic:
