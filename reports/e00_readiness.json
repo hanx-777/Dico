@@ -1,0 +1,499 @@
+{
+  "checks": [
+    {
+      "details": {
+        "checked_configs": 31,
+        "failed_checks": 0,
+        "skipped_checks": 68,
+        "status": "PASS",
+        "total_checks": 496
+      },
+      "id": "protocol_preflight",
+      "message": "formal configs passed protocol preflight",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "eval": {
+          "exists": true,
+          "line_count": 1319,
+          "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/data/gsm8k/main/test.jsonl",
+          "sha256": "3730d312f6e3440559ace48831e51066acaca737f6eabec99bccb9e4b3c39d14",
+          "size_bytes": 749738
+        },
+        "train": {
+          "exists": true,
+          "line_count": 395053,
+          "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/data/metamathqa/train.jsonl",
+          "sha256": "0e6edf575c09aee0129eccbed82fc6be225ee0470b51572d24e483f96468beaf",
+          "size_bytes": 298435901
+        }
+      },
+      "id": "data_files",
+      "message": "training/evaluation data files are present and hashed",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "exists": false,
+        "kind": "hf_id_or_remote_reference",
+        "name_or_path": "meta-llama/Llama-3.1-8B-Base",
+        "note": "No local model files were checked for this non-local reference.",
+        "source": "config"
+      },
+      "id": "model_reference",
+      "message": "model reference meta-llama/Llama-3.1-8B-Base looks like a HuggingFace id; download/access must still be confirmed by E00",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "missing_required": [
+          "transformers",
+          "accelerate",
+          "datasets"
+        ],
+        "optional_packages": [
+          "vllm",
+          "flash-attn"
+        ],
+        "packages": {
+          "accelerate": {
+            "installed": false,
+            "version": null
+          },
+          "datasets": {
+            "installed": false,
+            "version": null
+          },
+          "flash-attn": {
+            "installed": false,
+            "version": null
+          },
+          "numpy": {
+            "installed": true,
+            "version": "2.5.0"
+          },
+          "pandas": {
+            "installed": true,
+            "version": "3.0.3"
+          },
+          "scikit-learn": {
+            "installed": true,
+            "version": "1.9.0"
+          },
+          "scipy": {
+            "installed": true,
+            "version": "1.18.0"
+          },
+          "torch": {
+            "installed": true,
+            "version": "2.12.1"
+          },
+          "transformers": {
+            "installed": false,
+            "version": null
+          },
+          "vllm": {
+            "installed": false,
+            "version": null
+          }
+        },
+        "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+        "python": "3.13.13",
+        "python_executable": "/opt/miniconda3/bin/python",
+        "required_packages": [
+          "torch",
+          "transformers",
+          "accelerate",
+          "datasets",
+          "numpy",
+          "scipy",
+          "scikit-learn",
+          "pandas"
+        ],
+        "strict": false,
+        "torch_cuda_available": false,
+        "torch_cuda_version": null
+      },
+      "id": "dependency_versions",
+      "message": "missing runtime packages recorded as warning for local dry-run: ['transformers', 'accelerate', 'datasets']",
+      "status": "WARN"
+    },
+    {
+      "details": {
+        "exists": true,
+        "free_bytes": 185837809664,
+        "free_gb": 173.07494735717773,
+        "min_free_gb": 0.0,
+        "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/outputs/dico_v03",
+        "source": "config",
+        "writable": true
+      },
+      "id": "output_dir",
+      "message": "output directory is writable with 173.07 GB free",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "missing_or_not_ready": [],
+        "not_ready_or_blocked": [
+          "eva"
+        ],
+        "required_ready": [
+          "uniform_lora",
+          "adalora",
+          "gora_public",
+          "gora_bm",
+          "covra",
+          "covra_independent",
+          "covra_module_scalar"
+        ]
+      },
+      "id": "baseline_statuses",
+      "message": "required local E00/E01 baselines are implemented-not-GPU-run",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "exists": true,
+        "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/scripts/platform_train.py"
+      },
+      "id": "platform_launcher",
+      "message": "platform_train.py exists",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "exists": true,
+        "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/launch_covra.py"
+      },
+      "id": "single_file_platform_launcher",
+      "message": "launch_covra.py exists",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "command": [
+          "/opt/miniconda3/bin/python",
+          "scripts/platform_train.py",
+          "--dry-run",
+          "--skip-model-check",
+          "--model-path",
+          "meta-llama/Llama-3.1-8B-Base",
+          "--output-dir",
+          "outputs/e00_readiness_platform_dry_run",
+          "--num-gpus",
+          "3",
+          "--seeds",
+          "42,43,44",
+          "--batch-size",
+          "4",
+          "--grad-accum",
+          "16",
+          "--calibration-batch-size",
+          "4"
+        ],
+        "command_count": 12,
+        "effective_batch": 64,
+        "num_gpus": 3,
+        "returncode": 0,
+        "stderr_excerpt": [],
+        "stdout_excerpt": [
+          "[platform] cwd=/Users/lxw/Desktop/Dico/dico_rank_experiments",
+          "[platform] conda_bin=/ai/lxw/lxw/miniconda3/bin/conda",
+          "[platform] conda_env=dico-rank",
+          "[platform] num_gpus=3 (parallel single-GPU workers) batch_size=4 grad_accum=16 effective_batch=64",
+          "[platform] config=configs/dico/lora_r8.yaml seeds=[42, 43, 44]",
+          "[platform] gpu=0 set -e",
+          "eval \"$(/ai/lxw/lxw/miniconda3/bin/conda shell.bash hook)\" || source /ai/lxw/lxw/miniconda3/etc/profile.d/conda.sh",
+          "conda activate dico-rank",
+          "python scripts/run_experiment.py --config configs/dico/lora_r8.yaml --num-processes 1 --override model.name_or_path=meta-llama/Llama-3.1-8B-Base --override project.output_dir=outputs/e00_readiness_platform_dry_run --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override calibration.batch_size=4 --override experiment_name=lora_r8_protocol_aligned_seed42 --override seed=42 --override preallocation.sketch_seed=42 --override calibration.save_dir=outputs/e00_readiness_platform_dry_run/preallocations/lora_r8_protocol_aligned_seed42",
+          "[platform] gpu=1 set -e",
+          "eval \"$(/ai/lxw/lxw/miniconda3/bin/conda shell.bash hook)\" || source /ai/lxw/lxw/miniconda3/etc/profile.d/conda.sh",
+          "conda activate dico-rank",
+          "python scripts/run_experiment.py --config configs/dico/lora_r8.yaml --num-processes 1 --override model.name_or_path=meta-llama/Llama-3.1-8B-Base --override project.output_dir=outputs/e00_readiness_platform_dry_run --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override calibration.batch_size=4 --override experiment_name=lora_r8_protocol_aligned_seed43 --override seed=43 --override preallocation.sketch_seed=43 --override calibration.save_dir=outputs/e00_readiness_platform_dry_run/preallocations/lora_r8_protocol_aligned_seed43",
+          "[platform] gpu=2 set -e",
+          "eval \"$(/ai/lxw/lxw/miniconda3/bin/conda shell.bash hook)\" || source /ai/lxw/lxw/miniconda3/etc/profile.d/conda.sh",
+          "conda activate dico-rank",
+          "python scripts/run_experiment.py --config configs/dico/lora_r8.yaml --num-processes 1 --override model.name_or_path=meta-llama/Llama-3.1-8B-Base --override project.output_dir=outputs/e00_readiness_platform_dry_run --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override calibration.batch_size=4 --override experiment_name=lora_r8_protocol_aligned_seed44 --override seed=44 --override preallocation.sketch_seed=44 --override calibration.save_dir=outputs/e00_readiness_platform_dry_run/preallocations/lora_r8_protocol_aligned_seed44",
+          "[platform] config=configs/dico/adalora_r8.yaml seeds=[42, 43, 44]",
+          "[platform] gpu=0 set -e",
+          "eval \"$(/ai/lxw/lxw/miniconda3/bin/conda shell.bash hook)\" || source /ai/lxw/lxw/miniconda3/etc/profile.d/conda.sh"
+        ]
+      },
+      "id": "platform_launcher_dry_run",
+      "message": "platform_train dry-run generated 4 configs × 3 seeds with global batch 64",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "checked_wrappers": [
+          "scripts/run_lora_r8.sh",
+          "scripts/run_gora_bw.sh",
+          "scripts/run_dico_cd.sh",
+          "scripts/run_dico_cd_da.sh",
+          "scripts/run_mixed_math_code.sh",
+          "scripts/run_ablation_covra_independent.sh",
+          "scripts/run_ablation_covra_module_scalar.sh",
+          "scripts/run_ablation_no_sign_split.sh",
+          "scripts/run_ablation_no_type_scaling.sh",
+          "scripts/run_ablation_no_log_compression.sh",
+          "scripts/run_ablation_proportional_rounding.sh",
+          "scripts/run_ablation_global_only.sh",
+          "scripts/run_ablation_grouped_only.sh",
+          "scripts/run_ablation_random_init.sh",
+          "scripts/run_ablation_uniform_rank_covra_init.sh",
+          "scripts/run_ablation_covra_rank_random_init.sh",
+          "scripts/run_ablation_taxonomy.sh",
+          "scripts/run_ablation_coverage.sh"
+        ],
+        "failed_wrappers": [],
+        "records": [
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_lora_r8.sh",
+            "references": [
+              "configs/dico/lora_r8.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_gora_bw.sh",
+            "references": [
+              "configs/dico/gora_bw_r8.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_dico_cd.sh",
+            "references": [
+              "configs/dico/dico_cd_r8.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_dico_cd_da.sh",
+            "references": [
+              "configs/dico/dico_cd_da_r8.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_mixed_math_code.sh",
+            "references": [
+              "configs/dico/mixed_math_code_r8.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_covra_independent.sh",
+            "references": [
+              "configs/ablations/covra_independent.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_covra_module_scalar.sh",
+            "references": [
+              "configs/ablations/covra_module_scalar.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_no_sign_split.sh",
+            "references": [
+              "configs/ablations/no_sign_split.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_no_type_scaling.sh",
+            "references": [
+              "configs/ablations/no_type_scaling.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_no_log_compression.sh",
+            "references": [
+              "configs/ablations/no_log_compression.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_proportional_rounding.sh",
+            "references": [
+              "configs/ablations/proportional_rounding.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_global_only.sh",
+            "references": [
+              "configs/ablations/global_only.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_grouped_only.sh",
+            "references": [
+              "configs/ablations/grouped_only.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_random_init.sh",
+            "references": [
+              "configs/ablations/random_init.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_uniform_rank_covra_init.sh",
+            "references": [
+              "configs/ablations/uniform_rank_covra_init.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_covra_rank_random_init.sh",
+            "references": [
+              "configs/ablations/covra_rank_random_init.yaml",
+              "scripts/run_experiment.py"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_taxonomy.sh",
+            "references": [
+              "scripts/run_ablation_no_sign_split.sh"
+            ],
+            "stderr_excerpt": []
+          },
+          {
+            "bash_syntax_ok": true,
+            "exists": true,
+            "missing_references": [],
+            "path": "scripts/run_ablation_coverage.sh",
+            "references": [
+              "scripts/run_ablation_covra_independent.sh"
+            ],
+            "stderr_excerpt": []
+          }
+        ]
+      },
+      "id": "shell_wrapper_entrypoints",
+      "message": "18 shell wrapper entrypoints exist, parse, and reference existing files",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "exists": true,
+        "path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/scripts/run_ddp.sh"
+      },
+      "id": "ddp_fallback_launcher",
+      "message": "run_ddp.sh exists",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "accelerate_config_exists": true,
+        "accelerate_config_path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/configs/accelerate_3gpu.yaml",
+        "accelerate_num_processes": 3,
+        "bash_syntax_ok": true,
+        "default_gradient_accumulation_steps": 7,
+        "default_num_gpus": 3,
+        "default_per_gpu_batch_size": 3,
+        "effective_global_batch": 63,
+        "script_exists": true,
+        "script_path": "/Users/lxw/Desktop/Dico/dico_rank_experiments/scripts/run_ddp.sh",
+        "stderr_excerpt": []
+      },
+      "id": "ddp_fallback_protocol",
+      "message": "run_ddp.sh fallback protocol is 3 GPUs × per-device batch 3 × grad accum 7 = global batch 63",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "cuda_available": false,
+        "note": "Use --require-gpu-count 3 on the A800 server as the hard gate. Local CPU checks may use --require-gpu-count 0.",
+        "required_gpu_count": 0,
+        "visible_cuda_gpu_count": 0
+      },
+      "id": "gpu_count",
+      "message": "visible CUDA GPU count 0 satisfies required 0",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "failed_checks": 0,
+    "requires_real_gpu_execution": true,
+    "status": "READY_DRY_RUN",
+    "total_checks": 13
+  }
+}

@@ -1,0 +1,21 @@
+inherits: dico_cd_da_r8.yaml
+
+experiment_name: dico_cd_da_mixed_math_code_r8
+data:
+  train_sources:                    # replaces the old unparsed "MetaMathQA-50K+CodeFeedback-50K"
+    - path: data/metamathqa/train.jsonl        # string; run scripts/download_data.py first
+      group: math
+      limit: 50000
+    - path: data/codefeedback/train.jsonl      # run scripts/download_codefeedback.py first
+      group: code
+      limit: 50000
+  eval_datasets:
+    - gsm8k
+    - humaneval
+calibration:
+  group_sampling: balanced         # stratified: num_samples // 2 drawn from each of math/code
+dico:
+  split:
+    mode: group                    # this is the one config with real per-sample task
+                                    # labels (math/code) -- use §3.3.1's group split
+                                    # instead of the sign-split fallback for unlabeled data

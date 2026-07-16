@@ -1,0 +1,191 @@
+project:
+  name: dico_v03_protocol_aligned
+  output_dir: outputs/dico_v03
+
+seed: 42
+experiment_name: covra_reference_base
+method: dico_cd_da
+rank: 8
+
+protocol:
+  reference: covra_v05_resolved_seed42
+  framing: aligned_to_executed_reference_protocol
+  note: Formal CovRA follows the executed covra_v05 resolved config; local model fingerprints are recorded at runtime because the reference revision was not locked.
+  unresolved_fields:
+    - field: model.revision
+      status: unresolved
+      reason: The executed reference did not lock an immutable model revision; formal runs must record the local model directory fingerprint.
+    - field: model.tokenizer_revision
+      status: unresolved
+      reason: The tokenizer follows the local model directory and is covered by the runtime fingerprint.
+
+model:
+  name_or_path: meta-llama/Llama-3.1-8B-Base
+  torch_dtype: bfloat16
+  device_map: auto
+  load_in_8bit: false
+  load_in_4bit: false
+  attn_implementation: null
+
+data:
+  dataset_name: protocol_aligned
+  train_path: data/metamathqa/train.jsonl
+  eval_path: data/gsm8k/main/test.jsonl
+  train_dataset: MetaMathQA-100K
+  eval_datasets:
+    - gsm8k
+  max_length: 512
+  train_limit: 100000
+  eval_limit: null
+  num_workers: 4
+  shuffle: false
+  dataset_seed: 42
+  token_cache_dir: cache/tokenized
+
+training:
+  max_steps: 1562
+  batch_size: 4
+  per_gpu_batch_size: null
+  gradient_accumulation_steps: 16
+  learning_rate: 5.0e-5
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 5.0e-4
+  max_grad_norm: null
+  warmup_ratio: 0.03
+  auto_warmup_steps: 0
+  auto_warmup_rate: 0.05
+  lr_decay_ratio: 0.1
+  logging_steps: 10
+  save_steps: 1000
+  gradient_checkpointing: true
+  save_optimizer_state: false
+  sample_exposure_policy: fixed_reference_order
+  optimizer_backend: adamw
+  ddp_timeout_minutes: 180
+
+lora:
+  injection: static
+  scaling: alpha_over_sqrt_r
+  alpha: 16
+  dropout: 0.05
+  adapter_dtype: bfloat16
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+  bias: none
+  max_rank_multiplier: 4
+
+budget:
+  mode: equal_trainable_params
+  warning_threshold: 0.01
+  enforce_target_ratio: 1.0
+  enforce_min_ratio: 0.98
+
+calibration:
+  enabled: true
+  num_samples: 256
+  batch_size: 4
+  seed: 42
+  shuffle: false
+  save_dir: outputs/dico_v03/preallocations
+
+preallocation:
+  atom_mode: svd
+  allocation_method: covra_v05
+  top_k_atoms: 8
+  sketch_dim: 16
+  sketch_oversample: 24
+  compute_device: auto
+  allocation_device: cpu
+  module_chunk_size: 32
+  progress_logging_steps: 1
+  sketch_seed: 42
+  sketch_dtype: float32
+  answer_only: true
+  profile_norm_mode: streaming_estimate
+  lambda_cov: 1.0
+  response_agg_groups: 4
+  eta: 0.98
+  beta: 1.0
+  r_min_multiplier: 0.25
+  r_max_multiplier: 4.0
+  allow_rank_beyond_selected_evidence: true
+  evidence_selection:
+    max_selected_atoms: auto
+
+dico:
+  version: cd_da
+  profile:
+    domain: sketch
+    eps: 1.0e-6
+  taxonomy:
+    enabled: true
+    alpha: 0.05
+    permutation_count: 1000
+    fdr:
+      enabled: true
+      scope: per_module_type
+      method: BH
+  pseudo_group:
+    enabled: true
+    min_k: 2
+    max_k: 6
+    val_fraction: 0.5
+  split:
+    enabled: true
+    mode: sign
+    physical_merge: true
+  coverage:
+    objective: group_nsw
+    eps: 1.0e-6
+    residual_space: profile
+    window_h: 2
+    relative_stop_delta: 1.0e-3
+    kappa_calibration:
+      enabled: true
+      alpha: 0.1
+      max_pairs: 2000
+  procurement:
+    mode: density_greedy
+    beta: 0.5
+    reserve_queue: true
+    relaxation_fallback: true
+  init:
+    mode: direction_anchored
+    zero_B: true
+
+evaluation:
+  metric: gsm8k_accuracy
+  compute_loss: true
+  protocol: aligned_zero_shot
+  prompt_style: sft_cot_hash
+  answer_extraction: strict_then_flexible
+  max_batches: 4
+  batch_size: 1
+  mid_eval_loss_only:
+    enabled: true
+    every_n_steps: 50
+    max_batches: 4
+  compute_accuracy: true
+  accuracy_during_training: false
+  accuracy_max_samples: null
+  generation_max_new_tokens: 256
+  stop_sequences:
+    - "\nQuestion:"
+    - "<|im_end|>"
+  mtbench_local:
+    enabled: false
+    judge_model: meta-llama/Llama-3.1-70B-Instruct
+    judge_prompt_version: fastchat-v0.2.36
+    conversation_template: llama-3
+    temperature: 0.0
+    seed: 0
+    swap_positions: true
+    max_retries: 2
+
+runtime:
+  require_flash_attention_2: false
+  protocol_scope: covra_reference

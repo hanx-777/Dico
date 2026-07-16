@@ -1,0 +1,51 @@
+{
+  "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+  "methods": {
+    "adalora": {
+      "checkpoint_exists": true,
+      "eval_log_exists": true,
+      "final_metric": null,
+      "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+      "manifest_path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/tmp.odQcBelFvy/cpu_smoke_adalora/run_manifest.json",
+      "optimizer_steps": 1,
+      "requires_grad": 136
+    },
+    "dico_cd_da": {
+      "checkpoint_exists": true,
+      "eval_log_exists": true,
+      "final_metric": null,
+      "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+      "manifest_path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/tmp.odQcBelFvy/cpu_smoke_dico_cd_da/run_manifest.json",
+      "optimizer_steps": 1,
+      "requires_grad": 64
+    },
+    "gora_bm": {
+      "checkpoint_exists": true,
+      "eval_log_exists": true,
+      "final_metric": null,
+      "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+      "manifest_path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/tmp.odQcBelFvy/cpu_smoke_gora_bm/run_manifest.json",
+      "optimizer_steps": 1,
+      "requires_grad": 64
+    },
+    "gora_public": {
+      "checkpoint_exists": true,
+      "eval_log_exists": true,
+      "final_metric": null,
+      "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+      "manifest_path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/tmp.odQcBelFvy/cpu_smoke_gora_public/run_manifest.json",
+      "optimizer_steps": 1,
+      "requires_grad": 64
+    },
+    "lora": {
+      "checkpoint_exists": true,
+      "eval_log_exists": true,
+      "final_metric": null,
+      "gpu_status": "IMPLEMENTED_NOT_GPU_RUN",
+      "manifest_path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/tmp.odQcBelFvy/cpu_smoke_lora/run_manifest.json",
+      "optimizer_steps": 1,
+      "requires_grad": 64
+    }
+  },
+  "status": "IMPLEMENTED_AND_CPU_VERIFIED"
+}

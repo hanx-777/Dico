@@ -1,0 +1,9 @@
+inherits: base.yaml
+
+experiment_name: dico_cd_da_r8_covra_full_experimental
+method: dico_cd_da
+rank: 8
+dico:
+  version: cd_da
+  init:
+    mode: direction_anchored

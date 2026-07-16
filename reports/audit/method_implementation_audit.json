@@ -1,0 +1,101 @@
+{
+  "requirements": [
+    {
+      "evidence": [
+        "src/dico/covra_core.py",
+        "src/dico/preallocation.py",
+        "configs/dico/dico_cd_da_r8.yaml",
+        "tests/unit/test_covra_core.py",
+        "tests/unit/test_covra_final_preallocation_path.py"
+      ],
+      "id": "covra_full",
+      "remaining": "Run E00/E01 GPU pilot before claiming training-scale completion.",
+      "requirement": "Final CovRA conditional marginal coverage path is implemented and selected by main config.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/ablations/covra_independent.yaml",
+        "src/dico/preallocation.py",
+        "tests/unit/test_covra_core.py",
+        "tests/unit/test_covra_final_preallocation_path.py"
+      ],
+      "id": "covra_independent",
+      "remaining": "Needs formal GPU run for main-text claims.",
+      "requirement": "CovRA-I keeps CovRA candidates/protocol but replaces conditional value with independent energy curve.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/ablations/covra_module_scalar.yaml",
+        "src/dico/covra_core.py",
+        "src/dico/preallocation.py",
+        "tests/unit/test_covra_core.py",
+        "tests/unit/test_covra_final_preallocation_path.py"
+      ],
+      "id": "covra_module_scalar",
+      "remaining": "Template sensitivity still belongs in appendix after GPU runs.",
+      "requirement": "CovRA-M collapses direction-level value to module energy plus fixed non-increasing rank template.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/ablations/",
+        "scripts/experiment_matrix.py",
+        "tests/configs/test_v03_slim_layout.py"
+      ],
+      "id": "all_required_ablations",
+      "remaining": "Real training not executed in this environment.",
+      "requirement": "Required CovRA ablations are available as configs/scripts.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/ablations/*.yaml",
+        "src/dico/config.py",
+        "tests/configs/test_v03_slim_layout.py"
+      ],
+      "id": "ablation_single_factor_metadata",
+      "remaining": "Metadata defines the planned controls; real ablation claims still require E04-E08 GPU runs.",
+      "requirement": "Required CovRA mechanism ablations carry machine-readable id, reference config, mechanism group, single-factor field, and expected-difference metadata so duplicate or ambiguous controls are caught before formal runs.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/rank_budget.py",
+        "tests/unit/test_budget.py"
+      ],
+      "id": "dp_solver",
+      "remaining": "No remaining CPU-side blocker; GPU artifacts still needed for paper tables.",
+      "requirement": "Real-cost integer-rank DP solver exists and is tested against brute force.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/init.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "direction_init",
+      "remaining": "Large-model E00 smoke required.",
+      "requirement": "Direction-anchored initialization consumes selected CovRA directions and keeps initial delta W zero.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/base.yaml",
+        "configs/dico/base.yaml",
+        "src/dico/trainer.py",
+        "tests/configs/test_v03_slim_layout.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "legacy_isolation",
+      "remaining": "Legacy compatibility path remains for old configs and must stay labelled legacy.",
+      "requirement": "Historical taxonomy/procurement/beta/BH-FDR fields do not drive final CovRA path by default, and final CovRA tiny runs do not emit legacy artifacts.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    }
+  ],
+  "requirements_by_status": {
+    "IMPLEMENTED_NOT_GPU_RUN": 8
+  },
+  "title": "Method Implementation Audit"
+}

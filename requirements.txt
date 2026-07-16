@@ -3,8 +3,13 @@ transformers
 datasets
 accelerate
 bitsandbytes
+scipy
 numpy
 pandas
+scikit-learn
 pyyaml
 tqdm
+safetensors
+sentencepiece
+protobuf
 pytest

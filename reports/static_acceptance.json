@@ -1,0 +1,138 @@
+{
+  "checks": [
+    {
+      "details": {
+        "imported": [
+          "dico.config",
+          "dico.covra_core",
+          "dico.rank_budget",
+          "dico.trainer",
+          "dico.baselines"
+        ]
+      },
+      "id": "import_core_modules",
+      "message": "core CovRA/training modules import successfully",
+      "status": "PASS"
+    },
+    {
+      "details": {},
+      "id": "syntax_compile",
+      "message": "src/dico and scripts compile with Python bytecode compiler",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "command": [
+          "python",
+          "scripts/run_experiment.py",
+          "--config",
+          "configs/dico/dico_cd_da_r8.yaml",
+          "--dry-run"
+        ],
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "[run] experiment_name=dico_cd_da_r8_protocol_aligned method=dico_cd_da rank=8 seed=42 output_dir=outputs/dico_v03 lora_injection=static lora_scaling=alpha_over_r dico_version=cd_da config_path=/Users/lxw/Desktop/Dico/dico_rank_experiments/configs/dico/dico_cd_da_r8.yaml\n[dry-run] {\"config_path\": \"/Users/lxw/Desktop/Dico/dico_rank_experiments/configs/dico/dico_cd_da_r8.yaml\", \"experiment_name\": \"dico_cd_da_r8_protocol_aligned\", \"method\": \"dico_cd_da\", \"output_dir\": \"outputs/dico_v03\", \"overrides\": [], \"rank\": 8, \"seed\": 42}\n"
+      },
+      "id": "config_dry_run",
+      "message": "main CovRA r8 config resolves through run_experiment --dry-run",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "active_final": 64,
+        "final_metric": 0.0,
+        "requires_grad": 64,
+        "train_tokens": 1024
+      },
+      "id": "cpu_tiny_training_smoke",
+      "message": "tiny CPU path completed calibration, allocation, init, one train step, eval dry-run, checkpoint, and manifest",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "manifest_path": "/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_tiny_train_6itymttc/outputs/static_acceptance_tiny_covra/run_manifest.json",
+        "stdout_tail": "[validate_run_manifest] validated 1 manifest(s): PASS\n"
+      },
+      "id": "cpu_tiny_manifest_validation",
+      "message": "tiny CPU run_manifest.json passes the formal run manifest validator",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "active_final": 64,
+        "active_peak": 64,
+        "actual_budget": 64,
+        "budget_error": 0,
+        "module_total_final_params": 64,
+        "requires_grad": 64,
+        "target_budget": 64
+      },
+      "id": "cpu_tiny_parameter_budget_audit",
+      "message": "tiny CPU manifest parameter budget and active/trainable counts are internally consistent",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "command": [
+          "python",
+          "scripts/experiment_matrix.py",
+          "--json-output",
+          "/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_matrix_at3qgknq/experiment_matrix.json",
+          "--markdown-output",
+          "/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_matrix_at3qgknq/experiment_matrix.md"
+        ],
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "[experiment_matrix] wrote /var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_matrix_at3qgknq/experiment_matrix.json\n[experiment_matrix] wrote /var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_matrix_at3qgknq/experiment_matrix.md\n"
+      },
+      "id": "experiment_matrix_generation",
+      "message": "E00-E10 experiment command matrix generates successfully",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "command": [
+          "python",
+          "scripts/protocol_preflight.py",
+          "--json-output",
+          "/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_preflight_c0qcw943/protocol_preflight.json",
+          "--markdown-output",
+          "/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/covra_static_preflight_c0qcw943/protocol_preflight.md"
+        ],
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "[protocol_preflight] checked 29 config(s): PASS\n"
+      },
+      "id": "protocol_preflight",
+      "message": "formal configs pass protocol preflight",
+      "status": "PASS"
+    },
+    {
+      "details": {
+        "checked_tools": [
+          "mypy",
+          "pyright"
+        ]
+      },
+      "id": "typecheck_tool",
+      "message": "mypy/pyright is not installed in this environment; typecheck not claimed",
+      "status": "SKIP"
+    },
+    {
+      "details": {
+        "checked_tools": [
+          "ruff"
+        ]
+      },
+      "id": "lint_tool",
+      "message": "ruff is not installed in this environment; lint not claimed",
+      "status": "SKIP"
+    }
+  ],
+  "summary": {
+    "failed_checks": 0,
+    "skipped_checks": 2,
+    "status": "PASS_WITH_SKIPS",
+    "total_checks": 10
+  }
+}

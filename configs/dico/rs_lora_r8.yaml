@@ -1,0 +1,16 @@
+inherits: base.yaml
+
+experiment_name: rs_lora_r8_protocol_aligned
+method: rs_lora
+rank: 8
+calibration:
+  enabled: false
+lora:
+  injection: static
+  alpha: 16
+  dropout: 0
+  scaling: alpha_over_sqrt_r
+dico:
+  version: rs_lora
+  init:
+    mode: kaiming_zero_B

@@ -16,7 +16,7 @@ from dico_rank.atom_svd import (
 )
 from dico_rank.rank_budget import (
     BudgetInfo,
-    allocate_by_rank_allocator,
+    allocate_by_evidence_aware_utility,
     allocate_by_weighted_utility,
     compute_total_lora_params,
     module_rank_cost,
@@ -63,9 +63,10 @@ def build_preallocation_cache_context(
         "preallocation": {
             "atom_mode": pre_cfg.get("atom_mode", pre_cfg.get("fallback_atom_mode", "module_proxy")),
             "allocation_method": pre_cfg.get("allocation_method", "weighted"),
-            "rank_allocator": pre_cfg.get("rank_allocator"),
             "eta": pre_cfg.get("eta", 0.98),
+            "lambda_next": pre_cfg.get("lambda_next", 1.0),
             "allow_rank_beyond_selected_evidence": pre_cfg.get("allow_rank_beyond_selected_evidence", True),
+            "rounding_method": pre_cfg.get("rounding_method", "budget_aware_next_atom"),
             "use_soft_tail": pre_cfg.get("use_soft_tail", True),
             "use_cost_aware_allocation": pre_cfg.get("use_cost_aware_allocation", True),
             "top_k_atoms": pre_cfg.get("top_k_atoms"),
@@ -475,17 +476,23 @@ class DiCoPreAllocator:
             profile_path=self._profile_path(),
         )
         self._svd_diagnostics = diagnostics
-        atom_logs = [atom.to_log_dict() for atom in atoms]
+        module_utilities = aggregate_selected_module_utilities(
+            atoms,
+            self.module_names,
+            aggregation_mode=self.aggregation_mode,
+        )
+        selected_utilities = self._evidence_selected_utilities(atoms)
         rank = int(self.config.get("rank", 1))
         r_max = self._r_max()
-        allocation = allocate_by_rank_allocator(
-            atom_logs=atom_logs,
+        allocation = allocate_by_evidence_aware_utility(
+            module_utilities=module_utilities,
             module_dims=self.module_dims,
+            selected_atom_utilities=selected_utilities,
             target_budget=int(rank_budget),
             eta=float(self.pre_cfg.get("eta", 0.98)),
+            lambda_next=float(self.pre_cfg.get("lambda_next", 1.0)),
             r_min=max(0, int(rank * float(self.pre_cfg.get("r_min_multiplier", 0.0)))),
             r_max=r_max,
-            config=self.pre_cfg.get("rank_allocator"),
             allow_rank_beyond_selected_evidence=bool(self.pre_cfg.get("allow_rank_beyond_selected_evidence", True)),
             budget_mode=self.config.get("budget", {}).get("mode", "equal_trainable_params"),
             warning_threshold=float(self.config.get("budget", {}).get("warning_threshold", 0.01)),
@@ -501,16 +508,15 @@ class DiCoPreAllocator:
             row["use_cost_aware_allocation"] = self.use_cost_aware_allocation
             row["atom_mode"] = self.atom_mode
             row["profile_norm_mode"] = diagnostics.get("profile_norm_mode")
-            row["top_selected_atom_utilities"] = sorted(row.get("selected_atom_utilities", []), reverse=True)[:5]
+            row["top_selected_atom_utilities"] = sorted(selected_utilities.get(module_name, []), reverse=True)[:5]
             module_logs.append(row)
             rank_histogram[str(row["final_rank"])] = rank_histogram.get(str(row["final_rank"]), 0) + 1
 
+        atom_logs = [atom.to_log_dict() for atom in atoms]
         final_budget = allocation.budget.actual_budget
-        relaxation = _evidence_relaxation_diagnostics(module_logs)
         full_diagnostics = {
             **diagnostics,
-            "allocation_method": "directional_budgeted",
-            **(allocation.diagnostics or {}),
+            "allocation_method": self.pre_cfg.get("allocation_method", "coverage_evidence_weighted"),
             "num_modules": len(self.module_names),
             "total_params": final_budget,
             "budget_ref": int(rank_budget),
@@ -518,26 +524,20 @@ class DiCoPreAllocator:
             "budget_final": final_budget,
             "budget_ratio": float(final_budget / rank_budget) if rank_budget else 0.0,
             "eta": float(self.pre_cfg.get("eta", 0.98)),
+            "lambda_next": float(self.pre_cfg.get("lambda_next", 1.0)),
             "allow_rank_beyond_selected_evidence": bool(
                 self.pre_cfg.get("allow_rank_beyond_selected_evidence", True)
             ),
+            "rounding_method": self.pre_cfg.get("rounding_method", "budget_aware_next_atom"),
             "use_soft_tail": bool(self.pre_cfg.get("use_soft_tail", True)),
             "use_cost_aware_allocation": self.use_cost_aware_allocation,
             "rank_histogram": rank_histogram,
             "zero_rank_modules": [name for name, value in allocation.allocation.items() if int(value) == 0],
-            **relaxation,
-            "relaxation_rank_ratio": float(
-                relaxation["rank_beyond_selected_evidence_total"] / relaxation["final_total_rank"]
-            )
-            if relaxation["final_total_rank"]
-            else 0.0,
+            **_evidence_relaxation_diagnostics(module_logs),
         }
         return PreallocationResult(
             rank_allocation=allocation.allocation,
-            module_scores={
-                name: float(row.get("module_utility", 0.0) or 0.0)
-                for name, row in module_log_by_name.items()
-            },
+            module_scores=module_utilities,
             atom_logs=atom_logs,
             module_logs=module_logs,
             budget=allocation.budget,
@@ -549,7 +549,7 @@ class DiCoPreAllocator:
             module_names=list(self.module_names),
             module_dims={name: {key: int(value) for key, value in dims.items()} for name, dims in self.module_dims.items()},
             cache_context=build_preallocation_cache_context(self.config, self.module_names, self.module_dims),
-            allocation_method="directional_budgeted",
+            allocation_method=self.pre_cfg.get("allocation_method", "coverage_evidence_weighted"),
             profile_norm_mode=diagnostics.get("profile_norm_mode"),
             diagnostics=full_diagnostics,
         )
@@ -640,9 +640,11 @@ class DiCoPreAllocator:
                 "budget_final": final_budget,
                 "budget_ratio": float(final_budget / rank_budget) if rank_budget else 0.0,
                 "eta": float(self.pre_cfg.get("eta", 0.98)),
+                "lambda_next": float(self.pre_cfg.get("lambda_next", 1.0)),
                 "allow_rank_beyond_selected_evidence": bool(
                     self.pre_cfg.get("allow_rank_beyond_selected_evidence", True)
                 ),
+                "rounding_method": self.pre_cfg.get("rounding_method", "budget_aware_next_atom"),
                 "use_soft_tail": bool(self.pre_cfg.get("use_soft_tail", True)),
                 "use_cost_aware_allocation": self.use_cost_aware_allocation,
                 **_evidence_relaxation_diagnostics(module_logs),
@@ -721,9 +723,11 @@ class DiCoPreAllocator:
                 "budget_final": final_budget,
                 "budget_ratio": float(final_budget / rank_budget) if rank_budget else 0.0,
                 "eta": float(self.pre_cfg.get("eta", 0.98)),
+                "lambda_next": float(self.pre_cfg.get("lambda_next", 1.0)),
                 "allow_rank_beyond_selected_evidence": bool(
                     self.pre_cfg.get("allow_rank_beyond_selected_evidence", True)
                 ),
+                "rounding_method": self.pre_cfg.get("rounding_method", "budget_aware_next_atom"),
                 "use_soft_tail": bool(self.pre_cfg.get("use_soft_tail", True)),
                 "use_cost_aware_allocation": self.use_cost_aware_allocation,
                 **_evidence_relaxation_diagnostics(module_logs),

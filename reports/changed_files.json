@@ -1,0 +1,1787 @@
+{
+  "by_category": {
+    "added": 0,
+    "deleted": 21,
+    "modified": 9,
+    "other": 0,
+    "renamed": 76,
+    "untracked": 147
+  },
+  "files": [
+    {
+      "category": "modified",
+      "display": ".gitignore",
+      "old_path": "",
+      "path": ".gitignore",
+      "raw_status": " M"
+    },
+    {
+      "category": "deleted",
+      "display": "=0.46.1",
+      "old_path": "",
+      "path": "=0.46.1",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "AUDIT.md",
+      "old_path": "",
+      "path": "AUDIT.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "modified",
+      "display": "README.md",
+      "old_path": "",
+      "path": "README.md",
+      "raw_status": " M"
+    },
+    {
+      "category": "deleted",
+      "display": "TECHNICAL_DOCUMENT.md",
+      "old_path": "",
+      "path": "TECHNICAL_DOCUMENT.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_budget_guardrails.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_budget_guardrails.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_budget_guardrails.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_budget_guardrails.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_concentration_penalty.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_concentration_penalty.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_concentration_penalty.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_concentration_penalty.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_layer_diffusion.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_layer_diffusion.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_marginal_curve_layer_diffusion.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_marginal_curve_layer_diffusion.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_budget_guardrails.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_budget_guardrails.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_budget_guardrails.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_budget_guardrails.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_concentration_penalty.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_concentration_penalty.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_concentration_penalty.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_concentration_penalty.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_layer_diffusion.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_layer_diffusion.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_prototype_bundle_layer_diffusion.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_prototype_bundle_layer_diffusion.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_budget_guardrails.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_budget_guardrails.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_budget_guardrails.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_budget_guardrails.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_concentration_penalty.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_concentration_penalty.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_concentration_penalty.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_concentration_penalty.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_layer_diffusion.yaml -> configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_layer_diffusion.yaml",
+      "old_path": "configs/experiments/allocator_3x3/dico_pre_r8_alloc_soft_slot_layer_diffusion.yaml",
+      "path": "configs/ablations/allocator_grid/dico_pre_r8_alloc_soft_slot_layer_diffusion.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/ablations/dico_pre_r8_answer_full.yaml -> configs/ablations/single_factor/dico_pre_r8_answer_full.yaml",
+      "old_path": "configs/experiments/ablations/dico_pre_r8_answer_full.yaml",
+      "path": "configs/ablations/single_factor/dico_pre_r8_answer_full.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/ablations/dico_pre_r8_eta100.yaml -> configs/ablations/single_factor/dico_pre_r8_eta100.yaml",
+      "old_path": "configs/experiments/ablations/dico_pre_r8_eta100.yaml",
+      "path": "configs/ablations/single_factor/dico_pre_r8_eta100.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/ablations/dico_pre_r8_no_relaxation.yaml -> configs/ablations/single_factor/dico_pre_r8_no_relaxation.yaml",
+      "old_path": "configs/experiments/ablations/dico_pre_r8_no_relaxation.yaml",
+      "path": "configs/ablations/single_factor/dico_pre_r8_no_relaxation.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/ablations/dico_pre_r8_random.yaml -> configs/ablations/single_factor/dico_pre_r8_random.yaml",
+      "old_path": "configs/experiments/ablations/dico_pre_r8_random.yaml",
+      "path": "configs/ablations/single_factor/dico_pre_r8_random.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/ablations/dico_predynamic_r8_move20.yaml -> configs/ablations/single_factor/dico_predynamic_r8_move20.yaml",
+      "old_path": "configs/experiments/ablations/dico_predynamic_r8_move20.yaml",
+      "path": "configs/ablations/single_factor/dico_predynamic_r8_move20.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "modified",
+      "display": "configs/base.yaml",
+      "old_path": "",
+      "path": "configs/base.yaml",
+      "raw_status": " M"
+    },
+    {
+      "category": "deleted",
+      "display": "configs/debug/tiny_dico_dynamic.yaml",
+      "old_path": "",
+      "path": "configs/debug/tiny_dico_dynamic.yaml",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "configs/debug/tiny_dico_pre.yaml",
+      "old_path": "",
+      "path": "configs/debug/tiny_dico_pre.yaml",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "configs/debug/tiny_lora.yaml",
+      "old_path": "",
+      "path": "configs/debug/tiny_lora.yaml",
+      "raw_status": " D"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_dynamic_r4.yaml -> configs/methods/dico_dynamic_r4.yaml",
+      "old_path": "configs/experiments/dico_dynamic_r4.yaml",
+      "path": "configs/methods/dico_dynamic_r4.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_dynamic_r8.yaml -> configs/methods/dico_dynamic_r8.yaml",
+      "old_path": "configs/experiments/dico_dynamic_r8.yaml",
+      "path": "configs/methods/dico_dynamic_r8.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_pre_r4.yaml -> configs/methods/dico_pre_r4.yaml",
+      "old_path": "configs/experiments/dico_pre_r4.yaml",
+      "path": "configs/methods/dico_pre_r4.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_pre_r8.yaml -> configs/methods/dico_pre_r8.yaml",
+      "old_path": "configs/experiments/dico_pre_r8.yaml",
+      "path": "configs/methods/dico_pre_r8.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_predynamic_r4.yaml -> configs/methods/dico_predynamic_r4.yaml",
+      "old_path": "configs/experiments/dico_predynamic_r4.yaml",
+      "path": "configs/methods/dico_predynamic_r4.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/dico_predynamic_r8.yaml -> configs/methods/dico_predynamic_r8.yaml",
+      "old_path": "configs/experiments/dico_predynamic_r8.yaml",
+      "path": "configs/methods/dico_predynamic_r8.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/lora_r4.yaml -> configs/methods/lora_r4.yaml",
+      "old_path": "configs/experiments/lora_r4.yaml",
+      "path": "configs/methods/lora_r4.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/lora_r4_eta98.yaml -> configs/methods/lora_r4_eta98.yaml",
+      "old_path": "configs/experiments/lora_r4_eta98.yaml",
+      "path": "configs/methods/lora_r4_eta98.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/lora_r8.yaml -> configs/methods/lora_r8.yaml",
+      "old_path": "configs/experiments/lora_r8.yaml",
+      "path": "configs/methods/lora_r8.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "configs/experiments/lora_r8_eta98.yaml -> configs/methods/lora_r8_eta98.yaml",
+      "old_path": "configs/experiments/lora_r8_eta98.yaml",
+      "path": "configs/methods/lora_r8_eta98.yaml",
+      "raw_status": "RD"
+    },
+    {
+      "category": "modified",
+      "display": "data/README.md",
+      "old_path": "",
+      "path": "data/README.md",
+      "raw_status": " M"
+    },
+    {
+      "category": "modified",
+      "display": "data/gsm8k/main/test.jsonl",
+      "old_path": "",
+      "path": "data/gsm8k/main/test.jsonl",
+      "raw_status": " M"
+    },
+    {
+      "category": "modified",
+      "display": "data/gsm8k/main/train.jsonl",
+      "old_path": "",
+      "path": "data/gsm8k/main/train.jsonl",
+      "raw_status": " M"
+    },
+    {
+      "category": "deleted",
+      "display": "docs/RANK_ALLOCATOR_IMPLEMENTATION.md",
+      "old_path": "",
+      "path": "docs/RANK_ALLOCATOR_IMPLEMENTATION.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "docs/TECHNICAL_DOCUMENT.md",
+      "old_path": "",
+      "path": "docs/TECHNICAL_DOCUMENT.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "modified",
+      "display": "pytest.ini",
+      "old_path": "",
+      "path": "pytest.ini",
+      "raw_status": " M"
+    },
+    {
+      "category": "modified",
+      "display": "requirements.txt",
+      "old_path": "",
+      "path": "requirements.txt",
+      "raw_status": " M"
+    },
+    {
+      "category": "renamed",
+      "display": "scripts/audit_outputs.py -> scripts/analysis/audit_outputs.py",
+      "old_path": "scripts/audit_outputs.py",
+      "path": "scripts/analysis/audit_outputs.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "scripts/evaluate_experiment.py -> scripts/analysis/evaluate_experiment.py",
+      "old_path": "scripts/evaluate_experiment.py",
+      "path": "scripts/analysis/evaluate_experiment.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "scripts/inspect_rank_logs.py -> scripts/analysis/inspect_rank_logs.py",
+      "old_path": "scripts/inspect_rank_logs.py",
+      "path": "scripts/analysis/inspect_rank_logs.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "scripts/plot_heatmap.py -> scripts/analysis/plot_heatmap.py",
+      "old_path": "scripts/plot_heatmap.py",
+      "path": "scripts/analysis/plot_heatmap.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "scripts/summarize_results.py -> scripts/analysis/summarize_results.py",
+      "old_path": "scripts/summarize_results.py",
+      "path": "scripts/analysis/summarize_results.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/build_preallocation.py",
+      "old_path": "",
+      "path": "scripts/build_preallocation.py",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/env_hf_mirror.sh",
+      "old_path": "",
+      "path": "scripts/env_hf_mirror.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/lib/hf_env.sh",
+      "old_path": "",
+      "path": "scripts/lib/hf_env.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/lib/runtime.sh",
+      "old_path": "",
+      "path": "scripts/lib/runtime.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_ablations.sh",
+      "old_path": "",
+      "path": "scripts/run_ablations.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_all_8.sh",
+      "old_path": "",
+      "path": "scripts/run_all_8.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_all_8_experiments.sh",
+      "old_path": "",
+      "path": "scripts/run_all_8_experiments.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_all_8_nohup.sh",
+      "old_path": "",
+      "path": "scripts/run_all_8_nohup.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_all_multiseed.sh",
+      "old_path": "",
+      "path": "scripts/run_all_multiseed.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "modified",
+      "display": "scripts/run_experiment.py",
+      "old_path": "",
+      "path": "scripts/run_experiment.py",
+      "raw_status": " M"
+    },
+    {
+      "category": "deleted",
+      "display": "scripts/run_pre_allocator_3x3_2seed.sh",
+      "old_path": "",
+      "path": "scripts/run_pre_allocator_3x3_2seed.sh",
+      "raw_status": " D"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/__init__.py -> src/dico/__init__.py",
+      "old_path": "src/dico_rank/__init__.py",
+      "path": "src/dico/__init__.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/atom_svd.py -> src/dico/atom_svd.py",
+      "old_path": "src/dico_rank/atom_svd.py",
+      "path": "src/dico/atom_svd.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/config.py -> src/dico/config.py",
+      "old_path": "src/dico_rank/config.py",
+      "path": "src/dico/config.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/data.py -> src/dico/data.py",
+      "old_path": "src/dico_rank/data.py",
+      "path": "src/dico/data.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/dynamic_allocation.py -> src/dico/dynamic_allocation.py",
+      "old_path": "src/dico_rank/dynamic_allocation.py",
+      "path": "src/dico/dynamic_allocation.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/evaluator.py -> src/dico/evaluator.py",
+      "old_path": "src/dico_rank/evaluator.py",
+      "path": "src/dico/evaluator.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/logging_utils.py -> src/dico/logging_utils.py",
+      "old_path": "src/dico_rank/logging_utils.py",
+      "path": "src/dico/logging_utils.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/lora_masked.py -> src/dico/lora_masked.py",
+      "old_path": "src/dico_rank/lora_masked.py",
+      "path": "src/dico/lora_masked.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/model_loader.py -> src/dico/model_loader.py",
+      "old_path": "src/dico_rank/model_loader.py",
+      "path": "src/dico/model_loader.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/path_utils.py -> src/dico/path_utils.py",
+      "old_path": "src/dico_rank/path_utils.py",
+      "path": "src/dico/path_utils.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/preallocation.py -> src/dico/preallocation.py",
+      "old_path": "src/dico_rank/preallocation.py",
+      "path": "src/dico/preallocation.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/rank_allocator.py -> src/dico/rank_allocator.py",
+      "old_path": "src/dico_rank/rank_allocator.py",
+      "path": "src/dico/rank_allocator.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/rank_budget.py -> src/dico/rank_budget.py",
+      "old_path": "src/dico_rank/rank_budget.py",
+      "path": "src/dico/rank_budget.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/sketch.py -> src/dico/sketch.py",
+      "old_path": "src/dico_rank/sketch.py",
+      "path": "src/dico/sketch.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/trainer.py -> src/dico/trainer.py",
+      "old_path": "src/dico_rank/trainer.py",
+      "path": "src/dico/trainer.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/utils.py -> src/dico/utils.py",
+      "old_path": "src/dico_rank/utils.py",
+      "path": "src/dico/utils.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "src/dico_rank/visualization.py -> src/dico/visualization.py",
+      "old_path": "src/dico_rank/visualization.py",
+      "path": "src/dico/visualization.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_audit_outputs.py -> tests/analysis/test_audit_outputs.py",
+      "old_path": "tests/test_audit_outputs.py",
+      "path": "tests/analysis/test_audit_outputs.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_evaluate_experiment_posthoc.py -> tests/analysis/test_evaluate_experiment_posthoc.py",
+      "old_path": "tests/test_evaluate_experiment_posthoc.py",
+      "path": "tests/analysis/test_evaluate_experiment_posthoc.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_summary_accuracy.py -> tests/analysis/test_summary_accuracy.py",
+      "old_path": "tests/test_summary_accuracy.py",
+      "path": "tests/analysis/test_summary_accuracy.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_debug_configs.py -> tests/configs/test_debug_configs.py",
+      "old_path": "tests/test_debug_configs.py",
+      "path": "tests/configs/test_debug_configs.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_preallocation.py -> tests/integration/test_preallocation.py",
+      "old_path": "tests/test_preallocation.py",
+      "path": "tests/integration/test_preallocation.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_svd_atom_mode_tiny.py -> tests/integration/test_svd_atom_mode_tiny.py",
+      "old_path": "tests/test_svd_atom_mode_tiny.py",
+      "path": "tests/integration/test_svd_atom_mode_tiny.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_trainer_final_eval_logging.py -> tests/integration/test_trainer_final_eval_logging.py",
+      "old_path": "tests/test_trainer_final_eval_logging.py",
+      "path": "tests/integration/test_trainer_final_eval_logging.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_run_all_8_scripts.py -> tests/scripts/test_run_entrypoints.py",
+      "old_path": "tests/test_run_all_8_scripts.py",
+      "path": "tests/scripts/test_run_entrypoints.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_atom_mode_logging.py -> tests/unit/test_atom_mode_logging.py",
+      "old_path": "tests/test_atom_mode_logging.py",
+      "path": "tests/unit/test_atom_mode_logging.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_budget.py -> tests/unit/test_budget.py",
+      "old_path": "tests/test_budget.py",
+      "path": "tests/unit/test_budget.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_budget_describe.py -> tests/unit/test_budget_describe.py",
+      "old_path": "tests/test_budget_describe.py",
+      "path": "tests/unit/test_budget_describe.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_budget_param_fairness.py -> tests/unit/test_budget_param_fairness.py",
+      "old_path": "tests/test_budget_param_fairness.py",
+      "path": "tests/unit/test_budget_param_fairness.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_coverage_greedy.py -> tests/unit/test_coverage_greedy.py",
+      "old_path": "tests/test_coverage_greedy.py",
+      "path": "tests/unit/test_coverage_greedy.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_directional_budget.py -> tests/unit/test_directional_budget.py",
+      "old_path": "tests/test_directional_budget.py",
+      "path": "tests/unit/test_directional_budget.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_dynamic_allocator.py -> tests/unit/test_dynamic_allocator.py",
+      "old_path": "tests/test_dynamic_allocator.py",
+      "path": "tests/unit/test_dynamic_allocator.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_evaluator_accuracy.py -> tests/unit/test_evaluator_accuracy.py",
+      "old_path": "tests/test_evaluator_accuracy.py",
+      "path": "tests/unit/test_evaluator_accuracy.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_gsm8k_answer_extraction.py -> tests/unit/test_gsm8k_answer_extraction.py",
+      "old_path": "tests/test_gsm8k_answer_extraction.py",
+      "path": "tests/unit/test_gsm8k_answer_extraction.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_inactive_grad_masking.py -> tests/unit/test_inactive_grad_masking.py",
+      "old_path": "tests/test_inactive_grad_masking.py",
+      "path": "tests/unit/test_inactive_grad_masking.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_local_gsm8k_data.py -> tests/unit/test_local_gsm8k_data.py",
+      "old_path": "tests/test_local_gsm8k_data.py",
+      "path": "tests/unit/test_local_gsm8k_data.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_lora_eta_downscale.py -> tests/unit/test_lora_eta_downscale.py",
+      "old_path": "tests/test_lora_eta_downscale.py",
+      "path": "tests/unit/test_lora_eta_downscale.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_masked_lora.py -> tests/unit/test_masked_lora.py",
+      "old_path": "tests/test_masked_lora.py",
+      "path": "tests/unit/test_masked_lora.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_predynamic_distance.py -> tests/unit/test_predynamic_distance.py",
+      "old_path": "tests/test_predynamic_distance.py",
+      "path": "tests/unit/test_predynamic_distance.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_project_paths.py -> tests/unit/test_project_paths.py",
+      "old_path": "tests/test_project_paths.py",
+      "path": "tests/unit/test_project_paths.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_quantized_linear_compat.py -> tests/unit/test_quantized_linear_compat.py",
+      "old_path": "tests/test_quantized_linear_compat.py",
+      "path": "tests/unit/test_quantized_linear_compat.py",
+      "raw_status": "RM"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_random_allocation.py -> tests/unit/test_random_allocation.py",
+      "old_path": "tests/test_random_allocation.py",
+      "path": "tests/unit/test_random_allocation.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_rank_allocator.py -> tests/unit/test_rank_allocator.py",
+      "old_path": "tests/test_rank_allocator.py",
+      "path": "tests/unit/test_rank_allocator.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_rounding.py -> tests/unit/test_rounding.py",
+      "old_path": "tests/test_rounding.py",
+      "path": "tests/unit/test_rounding.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_signed_profile.py -> tests/unit/test_signed_profile.py",
+      "old_path": "tests/test_signed_profile.py",
+      "path": "tests/unit/test_signed_profile.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_svd_atoms.py -> tests/unit/test_svd_atoms.py",
+      "old_path": "tests/test_svd_atoms.py",
+      "path": "tests/unit/test_svd_atoms.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "renamed",
+      "display": "tests/test_weighted_aggregation.py -> tests/unit/test_weighted_aggregation.py",
+      "old_path": "tests/test_weighted_aggregation.py",
+      "path": "tests/unit/test_weighted_aggregation.py",
+      "raw_status": "RD"
+    },
+    {
+      "category": "deleted",
+      "display": "v0.2.5.md",
+      "old_path": "",
+      "path": "v0.2.5.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "v0.2.6.md",
+      "old_path": "",
+      "path": "v0.2.6.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "deleted",
+      "display": "v0.2.7.md",
+      "old_path": "",
+      "path": "v0.2.7.md",
+      "raw_status": " D"
+    },
+    {
+      "category": "untracked",
+      "display": ".idea/",
+      "old_path": "",
+      "path": ".idea/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "CLEANUP_REPORT.md",
+      "old_path": "",
+      "path": "CLEANUP_REPORT.md",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "\"CovRA_v0_6_2_AAAI\\346\\226\\271\\346\\263\\225\\350\\256\\272\\344\\270\\255\\346\\226\\207\\345\\210\\235\\347\\250\\277_\\344\\270\\273\\346\\226\\207\\345\\216\\213\\347\\274\\251_\\345\\244\\215\\347\\216\\260\\347\\273\\206\\350\\212\\202\\344\\277\\235\\347\\225\\231\\347\\211\\210.md\"",
+      "old_path": "",
+      "path": "\"CovRA_v0_6_2_AAAI\\346\\226\\271\\346\\263\\225\\350\\256\\272\\344\\270\\255\\346\\226\\207\\345\\210\\235\\347\\250\\277_\\344\\270\\273\\346\\226\\207\\345\\216\\213\\347\\274\\251_\\345\\244\\215\\347\\216\\260\\347\\273\\206\\350\\212\\202\\344\\277\\235\\347\\225\\231\\347\\211\\210.md\"",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "\"CovRA_\\345\\256\\236\\351\\252\\214\\350\\256\\241\\345\\210\\222_\\344\\277\\256\\350\\256\\242\\347\\211\\210.md\"",
+      "old_path": "",
+      "path": "\"CovRA_\\345\\256\\236\\351\\252\\214\\350\\256\\241\\345\\210\\222_\\344\\277\\256\\350\\256\\242\\347\\211\\210.md\"",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/covra_independent.yaml",
+      "old_path": "",
+      "path": "configs/ablations/covra_independent.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/covra_module_scalar.yaml",
+      "old_path": "",
+      "path": "configs/ablations/covra_module_scalar.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/covra_rank_random_init.yaml",
+      "old_path": "",
+      "path": "configs/ablations/covra_rank_random_init.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/global_only.yaml",
+      "old_path": "",
+      "path": "configs/ablations/global_only.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/grouped_only.yaml",
+      "old_path": "",
+      "path": "configs/ablations/grouped_only.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/no_log_compression.yaml",
+      "old_path": "",
+      "path": "configs/ablations/no_log_compression.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/no_sign_split.yaml",
+      "old_path": "",
+      "path": "configs/ablations/no_sign_split.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/no_type_scaling.yaml",
+      "old_path": "",
+      "path": "configs/ablations/no_type_scaling.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/proportional_rounding.yaml",
+      "old_path": "",
+      "path": "configs/ablations/proportional_rounding.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/random_init.yaml",
+      "old_path": "",
+      "path": "configs/ablations/random_init.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/rmin_0.yaml",
+      "old_path": "",
+      "path": "configs/ablations/rmin_0.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/scaling_alpha_over_r.yaml",
+      "old_path": "",
+      "path": "configs/ablations/scaling_alpha_over_r.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/scaling_alpha_over_sqrtr.yaml",
+      "old_path": "",
+      "path": "configs/ablations/scaling_alpha_over_sqrtr.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/sketch_dim_32.yaml",
+      "old_path": "",
+      "path": "configs/ablations/sketch_dim_32.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/top_k_atoms_64.yaml",
+      "old_path": "",
+      "path": "configs/ablations/top_k_atoms_64.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/ablations/uniform_rank_covra_init.yaml",
+      "old_path": "",
+      "path": "configs/ablations/uniform_rank_covra_init.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/accelerate_3gpu.yaml",
+      "old_path": "",
+      "path": "configs/accelerate_3gpu.yaml",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "configs/dico/",
+      "old_path": "",
+      "path": "configs/dico/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "data/metamathqa/",
+      "old_path": "",
+      "path": "data/metamathqa/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "docs/audits/",
+      "old_path": "",
+      "path": "docs/audits/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "docs/superpowers/",
+      "old_path": "",
+      "path": "docs/superpowers/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "launch_covra.py",
+      "old_path": "",
+      "path": "launch_covra.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "reports/",
+      "old_path": "",
+      "path": "reports/",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/audit_status.py",
+      "old_path": "",
+      "path": "scripts/audit_status.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/baseline_status.py",
+      "old_path": "",
+      "path": "scripts/baseline_status.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/changed_files_report.py",
+      "old_path": "",
+      "path": "scripts/changed_files_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/collect_run_manifests.py",
+      "old_path": "",
+      "path": "scripts/collect_run_manifests.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/directory_structure.py",
+      "old_path": "",
+      "path": "scripts/directory_structure.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/download_codefeedback.py",
+      "old_path": "",
+      "path": "scripts/download_codefeedback.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/download_data.py",
+      "old_path": "",
+      "path": "scripts/download_data.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/e00_readiness.py",
+      "old_path": "",
+      "path": "scripts/e00_readiness.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/experiment_matrix.py",
+      "old_path": "",
+      "path": "scripts/experiment_matrix.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/final_delivery_report.py",
+      "old_path": "",
+      "path": "scripts/final_delivery_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/mtbench_local_judge.py",
+      "old_path": "",
+      "path": "scripts/mtbench_local_judge.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/platform_train.py",
+      "old_path": "",
+      "path": "scripts/platform_train.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/protocol_preflight.py",
+      "old_path": "",
+      "path": "scripts/protocol_preflight.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_coverage.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_coverage.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_covra_independent.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_covra_independent.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_covra_module_scalar.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_covra_module_scalar.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_covra_rank_random_init.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_covra_rank_random_init.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_global_only.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_global_only.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_grouped_only.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_grouped_only.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_init.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_init.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_no_log_compression.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_no_log_compression.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_no_sign_split.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_no_sign_split.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_no_type_scaling.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_no_type_scaling.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_proportional_rounding.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_proportional_rounding.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_random_init.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_random_init.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_taxonomy.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_taxonomy.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ablation_uniform_rank_covra_init.sh",
+      "old_path": "",
+      "path": "scripts/run_ablation_uniform_rank_covra_init.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_ddp.sh",
+      "old_path": "",
+      "path": "scripts/run_ddp.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_dico_cd.sh",
+      "old_path": "",
+      "path": "scripts/run_dico_cd.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_dico_cd_da.sh",
+      "old_path": "",
+      "path": "scripts/run_dico_cd_da.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_gora_bw.sh",
+      "old_path": "",
+      "path": "scripts/run_gora_bw.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_lora_r8.sh",
+      "old_path": "",
+      "path": "scripts/run_lora_r8.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/run_mixed_math_code.sh",
+      "old_path": "",
+      "path": "scripts/run_mixed_math_code.sh",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/static_acceptance.py",
+      "old_path": "",
+      "path": "scripts/static_acceptance.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/summarize_seeds.py",
+      "old_path": "",
+      "path": "scripts/summarize_seeds.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/test_nccl.py",
+      "old_path": "",
+      "path": "scripts/test_nccl.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "scripts/validate_run_manifest.py",
+      "old_path": "",
+      "path": "scripts/validate_run_manifest.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/adalora.py",
+      "old_path": "",
+      "path": "src/dico/adalora.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/analysis.py",
+      "old_path": "",
+      "path": "src/dico/analysis.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/baselines.py",
+      "old_path": "",
+      "path": "src/dico/baselines.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/cache.py",
+      "old_path": "",
+      "path": "src/dico/cache.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/calibration.py",
+      "old_path": "",
+      "path": "src/dico/calibration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/candidates.py",
+      "old_path": "",
+      "path": "src/dico/candidates.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/coverage.py",
+      "old_path": "",
+      "path": "src/dico/coverage.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/covra_core.py",
+      "old_path": "",
+      "path": "src/dico/covra_core.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/diagnostics.py",
+      "old_path": "",
+      "path": "src/dico/diagnostics.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/gora_bw.py",
+      "old_path": "",
+      "path": "src/dico/gora_bw.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/init.py",
+      "old_path": "",
+      "path": "src/dico/init.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/kappa_calibration.py",
+      "old_path": "",
+      "path": "src/dico/kappa_calibration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/lora_checkpoint.py",
+      "old_path": "",
+      "path": "src/dico/lora_checkpoint.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/lora_scaling.py",
+      "old_path": "",
+      "path": "src/dico/lora_scaling.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/lora_static.py",
+      "old_path": "",
+      "path": "src/dico/lora_static.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/mtbench_local.py",
+      "old_path": "",
+      "path": "src/dico/mtbench_local.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/normalize.py",
+      "old_path": "",
+      "path": "src/dico/normalize.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/physical.py",
+      "old_path": "",
+      "path": "src/dico/physical.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/procurement.py",
+      "old_path": "",
+      "path": "src/dico/procurement.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/profiles.py",
+      "old_path": "",
+      "path": "src/dico/profiles.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/pseudo_groups.py",
+      "old_path": "",
+      "path": "src/dico/pseudo_groups.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "src/dico/taxonomy.py",
+      "old_path": "",
+      "path": "src/dico/taxonomy.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/configs/test_v03_slim_layout.py",
+      "old_path": "",
+      "path": "tests/configs/test_v03_slim_layout.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/conftest.py",
+      "old_path": "",
+      "path": "tests/conftest.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_audit_status_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_audit_status_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_baseline_status_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_baseline_status_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_changed_files_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_changed_files_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_chinese_documentation.py",
+      "old_path": "",
+      "path": "tests/scripts/test_chinese_documentation.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_collect_run_manifests.py",
+      "old_path": "",
+      "path": "tests/scripts/test_collect_run_manifests.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_directory_structure_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_directory_structure_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_e00_readiness.py",
+      "old_path": "",
+      "path": "tests/scripts/test_e00_readiness.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_experiment_matrix_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_experiment_matrix_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_final_delivery_report.py",
+      "old_path": "",
+      "path": "tests/scripts/test_final_delivery_report.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_launch_covra.py",
+      "old_path": "",
+      "path": "tests/scripts/test_launch_covra.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_mtbench_local_judge.py",
+      "old_path": "",
+      "path": "tests/scripts/test_mtbench_local_judge.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_platform_train.py",
+      "old_path": "",
+      "path": "tests/scripts/test_platform_train.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_protocol_preflight.py",
+      "old_path": "",
+      "path": "tests/scripts/test_protocol_preflight.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_readme_platform_consistency.py",
+      "old_path": "",
+      "path": "tests/scripts/test_readme_platform_consistency.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_run_experiment_num_processes.py",
+      "old_path": "",
+      "path": "tests/scripts/test_run_experiment_num_processes.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_static_acceptance.py",
+      "old_path": "",
+      "path": "tests/scripts/test_static_acceptance.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_summarize_seeds.py",
+      "old_path": "",
+      "path": "tests/scripts/test_summarize_seeds.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_v03_entrypoints.py",
+      "old_path": "",
+      "path": "tests/scripts/test_v03_entrypoints.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/scripts/test_validate_run_manifest.py",
+      "old_path": "",
+      "path": "tests/scripts/test_validate_run_manifest.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_adalora.py",
+      "old_path": "",
+      "path": "tests/unit/test_adalora.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_adalora_trainer_integration.py",
+      "old_path": "",
+      "path": "tests/unit/test_adalora_trainer_integration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_atom_svd_hybrid_sketch.py",
+      "old_path": "",
+      "path": "tests/unit/test_atom_svd_hybrid_sketch.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_atom_svd_profile.py",
+      "old_path": "",
+      "path": "tests/unit/test_atom_svd_profile.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_baseline_registry.py",
+      "old_path": "",
+      "path": "tests/unit/test_baseline_registry.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_calibration_group_sampling.py",
+      "old_path": "",
+      "path": "tests/unit/test_calibration_group_sampling.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_config.py",
+      "old_path": "",
+      "path": "tests/unit/test_config.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_coverage_kappa.py",
+      "old_path": "",
+      "path": "tests/unit/test_coverage_kappa.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_covra_core.py",
+      "old_path": "",
+      "path": "tests/unit/test_covra_core.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_covra_final_preallocation_path.py",
+      "old_path": "",
+      "path": "tests/unit/test_covra_final_preallocation_path.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_covra_fixed_scaling_ratio.py",
+      "old_path": "",
+      "path": "tests/unit/test_covra_fixed_scaling_ratio.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_ddp_compat.py",
+      "old_path": "",
+      "path": "tests/unit/test_ddp_compat.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_ddp_trainer_integration.py",
+      "old_path": "",
+      "path": "tests/unit/test_ddp_trainer_integration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_diagnostics.py",
+      "old_path": "",
+      "path": "tests/unit/test_diagnostics.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_candidates_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_candidates_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_coverage_module_type_isolation.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_coverage_module_type_isolation.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_coverage_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_coverage_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_da_init_trainer_integration.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_da_init_trainer_integration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_init_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_init_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_procurement_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_procurement_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_profiles_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_profiles_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_pseudo_groups_preallocation_integration.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_pseudo_groups_preallocation_integration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_pseudo_groups_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_pseudo_groups_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_dico_taxonomy_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_dico_taxonomy_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_direction_bank_purchased_only.py",
+      "old_path": "",
+      "path": "tests/unit/test_direction_bank_purchased_only.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_evaluator_humaneval.py",
+      "old_path": "",
+      "path": "tests/unit/test_evaluator_humaneval.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_gora_bw_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_gora_bw_v03.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_kappa_calibration.py",
+      "old_path": "",
+      "path": "tests/unit/test_kappa_calibration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_log_output_dir_generation.py",
+      "old_path": "",
+      "path": "tests/unit/test_log_output_dir_generation.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_lora_checkpoint.py",
+      "old_path": "",
+      "path": "tests/unit/test_lora_checkpoint.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_lr_scheduler.py",
+      "old_path": "",
+      "path": "tests/unit/test_lr_scheduler.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_mixed_math_code_data.py",
+      "old_path": "",
+      "path": "tests/unit/test_mixed_math_code_data.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_mixed_math_code_trainer_integration.py",
+      "old_path": "",
+      "path": "tests/unit/test_mixed_math_code_trainer_integration.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_mtbench_local.py",
+      "old_path": "",
+      "path": "tests/unit/test_mtbench_local.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_normalize.py",
+      "old_path": "",
+      "path": "tests/unit/test_normalize.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_physical.py",
+      "old_path": "",
+      "path": "tests/unit/test_physical.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_preallocation_config_validation.py",
+      "old_path": "",
+      "path": "tests/unit/test_preallocation_config_validation.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_procurement_quota.py",
+      "old_path": "",
+      "path": "tests/unit/test_procurement_quota.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_seed_propagation.py",
+      "old_path": "",
+      "path": "tests/unit/test_seed_propagation.py",
+      "raw_status": "??"
+    },
+    {
+      "category": "untracked",
+      "display": "tests/unit/test_static_lora_v03.py",
+      "old_path": "",
+      "path": "tests/unit/test_static_lora_v03.py",
+      "raw_status": "??"
+    }
+  ],
+  "summary": {
+    "repo_root": "/Users/lxw/Desktop/Dico/dico_rank_experiments",
+    "total_changed_files": 253
+  }
+}

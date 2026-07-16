@@ -1,0 +1,365 @@
+{
+  "requirements": [
+    {
+      "evidence": [
+        "scripts/platform_train.py",
+        "tests/scripts/test_platform_train.py"
+      ],
+      "id": "single_gpu_global_batch_64",
+      "remaining": "Run E00 on actual A800 GPU to verify memory and speed.",
+      "requirement": "Default 3xA800 scheduling runs three single-GPU seeds with global batch 64.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "scripts/e00_readiness.py",
+        "tests/scripts/test_e00_readiness.py"
+      ],
+      "id": "e00_readiness_report",
+      "remaining": "Run with --require-gpu-count 3 on the target A800 server before launching E00.",
+      "requirement": "Pre-E00 readiness report checks protocol preflight, data/model references, runtime dependencies, local baseline statuses, launchers, and optional GPU-count gate.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "scripts/run_ddp.sh",
+        "README.md",
+        "tests/unit/test_ddp_compat.py"
+      ],
+      "id": "ddp_fallback_global_batch_63",
+      "remaining": "DDP fallback has not been GPU-executed here.",
+      "requirement": "DDP fallback uses world size 3 and global batch 63 only after single-GPU OOM.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "configs/dico/dico_cd_da_r32_pilot.yaml",
+        "scripts/experiment_matrix.py",
+        "tests/configs/test_v03_slim_layout.py",
+        "tests/scripts/test_experiment_matrix_report.py"
+      ],
+      "id": "r32_pilot_config",
+      "remaining": "Formal r32 training remains recommended-only until E10 GPU pilot passes.",
+      "requirement": "High-budget r32 pilot config exists with r_max=128 and K/sketch_dim large enough for startup validation.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_ddp_trainer_integration.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "ddp_data_loading_manifest",
+      "remaining": "Real DDP fallback still needs E00/A800 execution to confirm runtime behavior.",
+      "requirement": "Run manifest records DDP data sharding, sampler type, drop_last, dataloader length, and last accumulation behavior.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/config.py",
+        "scripts/run_experiment.py",
+        "tests/unit/test_config.py",
+        "tests/configs/test_v03_slim_layout.py"
+      ],
+      "id": "strict_config_schema",
+      "remaining": "Schema only proves known-field coverage; it does not prove every known field is semantically consumed.",
+      "requirement": "Experiment configs and command-line overrides fail fast on unknown fields instead of silently carrying typos.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "scripts/protocol_preflight.py",
+        "tests/scripts/test_protocol_preflight.py"
+      ],
+      "id": "protocol_preflight",
+      "remaining": "Run the preflight report on the target A800 checkout before E00, then archive reports/protocol_preflight.{json,md}.",
+      "requirement": "Formal configs can be preflight-checked for protocol invariants before launching E00/E01 runs.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "source_control_and_command_manifest",
+      "remaining": "E00 should confirm these source and command fields on the real launch path used for A800 experiments.",
+      "requirement": "Run manifest records git commit/branch/dirty state, command argv, current working directory, and Python executable.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "scripts/validate_run_manifest.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py",
+        "tests/scripts/test_validate_run_manifest.py"
+      ],
+      "id": "model_revision_manifest",
+      "remaining": "E00/E01 should use locked Llama3 model/tokenizer revisions once the exact source revision is confirmed.",
+      "requirement": "Run manifest records model/tokenizer revision values; missing locked revisions are explicitly marked UNRESOLVED.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "resolved_config_manifest",
+      "remaining": "E00 should confirm the hash is written for full Llama3/A800 artifacts.",
+      "requirement": "Run manifest links to the fully resolved config and records its SHA256 hash.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "seed_manifest",
+      "remaining": "E00 should confirm seed fields under single-GPU and DDP fallback runtime paths.",
+      "requirement": "Run manifest records base, model/init, rank-local training, calibration, and sketch seeds.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/base.yaml",
+        "configs/dico/base.yaml",
+        "src/dico/config.py",
+        "tests/configs/test_v03_slim_layout.py"
+      ],
+      "id": "unresolved_protocol_fields",
+      "remaining": "Sensitivity runs must still be executed before treating these choices as settled.",
+      "requirement": "Provisional/unresolved protocol choices such as rho, response groups, and r_min are machine-readable in configs.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/data.py",
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "data_calibration_manifest",
+      "remaining": "Full model/data manifest hashes require E00/E01 real dataset runs.",
+      "requirement": "Run manifest records train/eval split counts, hashes, and calibration sample ids/hashes.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "runtime_hardware_manifest",
+      "remaining": "E00 should confirm the visible GPU list reports the expected A800 devices.",
+      "requirement": "Run manifest records Python/PyTorch/CUDA runtime plus visible GPU model names and peak CUDA memory.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "dependency_versions_manifest",
+      "remaining": "E00 should confirm GPU-server package versions, especially transformers/accelerate/vLLM.",
+      "requirement": "Run manifest records key dependency versions for Python, torch, transformers, accelerate, datasets, numpy/scipy/sklearn/pandas, and optional vLLM.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/base.yaml",
+        "configs/dico/base.yaml",
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py",
+        "tests/configs/test_v03_slim_layout.py"
+      ],
+      "id": "adapter_fp32_protocol",
+      "remaining": "E00 should confirm the same dtype split on the real Llama3/A800 path.",
+      "requirement": "LoRA adapter parameters stay FP32 even when the frozen base model is configured as BF16.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "optimizer_lr_group_manifest",
+      "remaining": "External baselines with multiple LR groups must be rechecked once their wrappers are implemented.",
+      "requirement": "Run manifest records optimizer identity, AdamW betas/eps, and actual LR parameter groups.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "optimizer_state_estimate_manifest",
+      "remaining": "E00 should compare this estimate with observed A800 peak memory and any optimizer variant used by external baselines.",
+      "requirement": "Run manifest records estimated optimizer-state memory for trainable adapter parameters.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "scheduler_protocol_manifest",
+      "remaining": "E00 should confirm scheduler fields under the real Llama3/A800 single-GPU and any DDP fallback paths.",
+      "requirement": "Run manifest records cosine-with-warmup scheduler, warmup ratio/steps, LR floor ratio, and optimizer-step source.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "module_budget_manifest",
+      "remaining": "E00 should confirm per-module costs on the real Llama3 q/k/v/o module set.",
+      "requirement": "Run manifest records per-module d_in/d_out rank cost, initial/final rank, and initial/final active LoRA parameter counts.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/base.yaml",
+        "configs/dico/base.yaml",
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "gradient_clipping_protocol",
+      "remaining": "E00 should confirm grad clipping and logged grad norms on the real Llama3/A800 training path.",
+      "requirement": "Training protocol applies max_grad_norm before optimizer.step() and records the clipping setting.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "src/dico/evaluator.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py",
+        "tests/unit/test_evaluator_accuracy.py",
+        "tests/unit/test_evaluator_humaneval.py"
+      ],
+      "id": "evaluation_artifact_manifest",
+      "remaining": "Full Llama3 GSM8K/HumanEval artifacts still need E00/E01 GPU execution.",
+      "requirement": "Run manifest records evaluation prediction artifacts with path, SHA256, row count, and required raw/processed/score fields.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "timing_and_throughput_manifest",
+      "remaining": "A800 E00 must confirm these fields under real GPU memory and dataloader behavior.",
+      "requirement": "Run manifest records calibration/allocation/initialization/training time and train tokens/s.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "method_artifact_manifest",
+      "remaining": "E00 should confirm these artifact hashes for full Llama3/CovRA outputs.",
+      "requirement": "Run manifest records rank allocation, budget, initialization, diagnostics, and utility JSON artifacts with path, SHA256, size, and format.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "run_artifact_manifest",
+      "remaining": "E00 should confirm run log artifacts for the real A800 launch path.",
+      "requirement": "Run manifest records train/eval logs, metrics, evaluation protocol, and run summary with path, SHA256, size, format, and JSONL row counts.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "scripts/validate_run_manifest.py",
+        "tests/scripts/test_validate_run_manifest.py"
+      ],
+      "id": "run_manifest_validation",
+      "remaining": "Run this validator on E00/E01 artifacts after real A800 runs and archive reports/run_manifest_validation.{json,md}.",
+      "requirement": "Completed run manifests can be independently validated for protocol fields, budget consistency, artifact hashes, and prediction row schema.",
+      "status": "READY_DRY_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "checkpoint_artifact_manifest",
+      "remaining": "E00 should confirm the recorded checkpoint artifact can be restored for the real Llama3/A800 run.",
+      "requirement": "Run manifest records the final LoRA adapter checkpoint artifact with path, SHA256, size, format, and final-checkpoint-only rule.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/lora_checkpoint.py",
+        "src/dico/trainer.py",
+        "tests/unit/test_lora_checkpoint.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "checkpoint_restore",
+      "remaining": "Large-model checkpoint restore should be smoke-tested after E00 writes a real A800 artifact.",
+      "requirement": "Adapter checkpoint saved by trainer can be restored into a fresh LoRA-injected model.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "tests/unit/test_dico_da_init_trainer_integration.py"
+      ],
+      "id": "checkpoint_selection_protocol",
+      "remaining": "E00 should confirm the same evaluation_protocol.json is written for real Llama3 runs.",
+      "requirement": "Evaluation protocol records final-checkpoint-only selection and no validation/test metric selection.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/evaluator.py",
+        "tests/unit/test_evaluator_accuracy.py"
+      ],
+      "id": "gsm8k_greedy",
+      "remaining": "Full GSM8K eval not run on Llama3 checkpoint in this environment.",
+      "requirement": "GSM8K main evaluation uses greedy decoding and archives raw/processed predictions.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/evaluator.py",
+        "tests/unit/test_evaluator_humaneval.py"
+      ],
+      "id": "humaneval_official_pass_at_1",
+      "remaining": "Official HumanEval dataset and full evaluation not run here.",
+      "requirement": "HumanEval pass@1 uses official unbiased estimator and archives completions.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "configs/base.yaml",
+        "src/dico/trainer.py",
+        "src/dico/mtbench_local.py",
+        "scripts/mtbench_local_judge.py",
+        "tests/unit/test_mtbench_local.py",
+        "tests/scripts/test_mtbench_local_judge.py"
+      ],
+      "id": "mtbench_local",
+      "remaining": "Real MTBench answer sets have not been scored with the target local 70B judge in this environment.",
+      "requirement": "MTBench-local judge protocol is locked and a local judge executor can score archived answer sets.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/trainer.py",
+        "scripts/collect_run_manifests.py",
+        "tests/scripts/test_collect_run_manifests.py"
+      ],
+      "id": "run_manifest",
+      "remaining": "Aggregation requires real run_manifest.json files from GPU experiments.",
+      "requirement": "Each completed run writes JSON manifest and Markdown summary; manifests can be aggregated.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    }
+  ],
+  "requirements_by_status": {
+    "IMPLEMENTED_NOT_GPU_RUN": 27,
+    "READY_DRY_RUN": 6
+  },
+  "title": "Experiment Protocol Audit"
+}

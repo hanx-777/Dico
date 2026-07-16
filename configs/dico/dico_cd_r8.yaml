@@ -1,0 +1,9 @@
+inherits: covra_reference_base.yaml
+
+experiment_name: dico_cd_r8_protocol_aligned
+method: dico_cd
+rank: 8
+dico:
+  version: cd
+  init:
+    mode: kaiming_zero_B

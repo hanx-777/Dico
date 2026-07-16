@@ -1,0 +1,416 @@
+{
+  "configs": [
+    {
+      "checks": [
+        {
+          "id": "strict_schema",
+          "message": "config contains only explicitly known fields",
+          "status": "PASS"
+        },
+        {
+          "id": "single_gpu_global_batch_64",
+          "message": "single-GPU global batch is 64",
+          "status": "PASS"
+        },
+        {
+          "id": "max_steps_match_train_volume",
+          "message": "max_steps=1563 matches train_samples=100000/global_batch=64",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_candidate_budget",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_calibration_1024",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_module_scalar_template",
+          "message": "not a CovRA-M config",
+          "status": "SKIP"
+        },
+        {
+          "id": "budget_policy",
+          "message": "strict equal-trainable-parameter budget policy is locked",
+          "status": "PASS"
+        },
+        {
+          "id": "adapter_fp32_base_bf16",
+          "message": "frozen base BF16 and adapter FP32 are configured",
+          "status": "PASS"
+        },
+        {
+          "id": "dropout_zero",
+          "message": "lora.dropout=0",
+          "status": "PASS"
+        },
+        {
+          "id": "gradient_checkpointing_off",
+          "message": "gradient checkpointing is off by default",
+          "status": "PASS"
+        },
+        {
+          "id": "target_modules_qkvo",
+          "message": "target modules match q/k/v/o projection set",
+          "status": "PASS"
+        },
+        {
+          "id": "legacy_fields_isolated",
+          "message": "legacy taxonomy/procurement fields are isolated and disabled",
+          "status": "PASS"
+        },
+        {
+          "id": "unresolved_fields_marked",
+          "message": "provisional/unresolved protocol fields are explicit",
+          "status": "PASS"
+        },
+        {
+          "id": "evaluation_protocol",
+          "message": "greedy GSM8K/HumanEval and MTBench-local judge protocol fields are locked",
+          "status": "PASS"
+        },
+        {
+          "id": "aligned_baseline_semantics",
+          "message": "method-specific baseline semantics are aligned",
+          "status": "PASS"
+        }
+      ],
+      "path": "configs/dico/lora_r8.yaml",
+      "status": "PASS"
+    },
+    {
+      "checks": [
+        {
+          "id": "strict_schema",
+          "message": "config contains only explicitly known fields",
+          "status": "PASS"
+        },
+        {
+          "id": "single_gpu_global_batch_64",
+          "message": "single-GPU global batch is 64",
+          "status": "PASS"
+        },
+        {
+          "id": "max_steps_match_train_volume",
+          "message": "max_steps=1563 matches train_samples=100000/global_batch=64",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_candidate_budget",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_calibration_1024",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_module_scalar_template",
+          "message": "not a CovRA-M config",
+          "status": "SKIP"
+        },
+        {
+          "id": "budget_policy",
+          "message": "strict equal-trainable-parameter budget policy is locked",
+          "status": "PASS"
+        },
+        {
+          "id": "adapter_fp32_base_bf16",
+          "message": "frozen base BF16 and adapter FP32 are configured",
+          "status": "PASS"
+        },
+        {
+          "id": "dropout_zero",
+          "message": "lora.dropout=0",
+          "status": "PASS"
+        },
+        {
+          "id": "gradient_checkpointing_off",
+          "message": "gradient checkpointing is off by default",
+          "status": "PASS"
+        },
+        {
+          "id": "target_modules_qkvo",
+          "message": "target modules match q/k/v/o projection set",
+          "status": "PASS"
+        },
+        {
+          "id": "legacy_fields_isolated",
+          "message": "legacy taxonomy/procurement fields are isolated and disabled",
+          "status": "PASS"
+        },
+        {
+          "id": "unresolved_fields_marked",
+          "message": "provisional/unresolved protocol fields are explicit",
+          "status": "PASS"
+        },
+        {
+          "id": "evaluation_protocol",
+          "message": "greedy GSM8K/HumanEval and MTBench-local judge protocol fields are locked",
+          "status": "PASS"
+        },
+        {
+          "id": "aligned_baseline_semantics",
+          "message": "method-specific baseline semantics are aligned",
+          "status": "PASS"
+        }
+      ],
+      "path": "configs/dico/adalora_r8.yaml",
+      "status": "PASS"
+    },
+    {
+      "checks": [
+        {
+          "id": "strict_schema",
+          "message": "config contains only explicitly known fields",
+          "status": "PASS"
+        },
+        {
+          "id": "single_gpu_global_batch_64",
+          "message": "single-GPU global batch is 64",
+          "status": "PASS"
+        },
+        {
+          "id": "max_steps_match_train_volume",
+          "message": "max_steps=1563 matches train_samples=100000/global_batch=64",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_candidate_budget",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_calibration_1024",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_module_scalar_template",
+          "message": "not a CovRA-M config",
+          "status": "SKIP"
+        },
+        {
+          "id": "budget_policy",
+          "message": "strict equal-trainable-parameter budget policy is locked",
+          "status": "PASS"
+        },
+        {
+          "id": "adapter_fp32_base_bf16",
+          "message": "frozen base BF16 and adapter FP32 are configured",
+          "status": "PASS"
+        },
+        {
+          "id": "dropout_zero",
+          "message": "lora.dropout=0",
+          "status": "PASS"
+        },
+        {
+          "id": "gradient_checkpointing_off",
+          "message": "gradient checkpointing is off by default",
+          "status": "PASS"
+        },
+        {
+          "id": "target_modules_qkvo",
+          "message": "target modules match q/k/v/o projection set",
+          "status": "PASS"
+        },
+        {
+          "id": "legacy_fields_isolated",
+          "message": "legacy taxonomy/procurement fields are isolated and disabled",
+          "status": "PASS"
+        },
+        {
+          "id": "unresolved_fields_marked",
+          "message": "provisional/unresolved protocol fields are explicit",
+          "status": "PASS"
+        },
+        {
+          "id": "evaluation_protocol",
+          "message": "greedy GSM8K/HumanEval and MTBench-local judge protocol fields are locked",
+          "status": "PASS"
+        },
+        {
+          "id": "aligned_baseline_semantics",
+          "message": "method-specific baseline semantics are aligned",
+          "status": "PASS"
+        }
+      ],
+      "path": "configs/dico/gora_public_r8.yaml",
+      "status": "PASS"
+    },
+    {
+      "checks": [
+        {
+          "id": "strict_schema",
+          "message": "config contains only explicitly known fields",
+          "status": "PASS"
+        },
+        {
+          "id": "single_gpu_global_batch_64",
+          "message": "single-GPU global batch is 64",
+          "status": "PASS"
+        },
+        {
+          "id": "max_steps_match_train_volume",
+          "message": "max_steps=1563 matches train_samples=100000/global_batch=64",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_candidate_budget",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_calibration_1024",
+          "message": "not a final CovRA allocation config",
+          "status": "SKIP"
+        },
+        {
+          "id": "covra_module_scalar_template",
+          "message": "not a CovRA-M config",
+          "status": "SKIP"
+        },
+        {
+          "id": "budget_policy",
+          "message": "strict equal-trainable-parameter budget policy is locked",
+          "status": "PASS"
+        },
+        {
+          "id": "adapter_fp32_base_bf16",
+          "message": "frozen base BF16 and adapter FP32 are configured",
+          "status": "PASS"
+        },
+        {
+          "id": "dropout_zero",
+          "message": "lora.dropout=0",
+          "status": "PASS"
+        },
+        {
+          "id": "gradient_checkpointing_off",
+          "message": "gradient checkpointing is off by default",
+          "status": "PASS"
+        },
+        {
+          "id": "target_modules_qkvo",
+          "message": "target modules match q/k/v/o projection set",
+          "status": "PASS"
+        },
+        {
+          "id": "legacy_fields_isolated",
+          "message": "legacy taxonomy/procurement fields are isolated and disabled",
+          "status": "PASS"
+        },
+        {
+          "id": "unresolved_fields_marked",
+          "message": "provisional/unresolved protocol fields are explicit",
+          "status": "PASS"
+        },
+        {
+          "id": "evaluation_protocol",
+          "message": "greedy GSM8K/HumanEval and MTBench-local judge protocol fields are locked",
+          "status": "PASS"
+        },
+        {
+          "id": "aligned_baseline_semantics",
+          "message": "method-specific baseline semantics are aligned",
+          "status": "PASS"
+        }
+      ],
+      "path": "configs/dico/gora_bm_r8.yaml",
+      "status": "PASS"
+    },
+    {
+      "checks": [
+        {
+          "id": "strict_schema",
+          "message": "config contains only explicitly known fields",
+          "status": "PASS"
+        },
+        {
+          "id": "single_gpu_global_batch_64",
+          "message": "single-GPU global batch is 64",
+          "status": "PASS"
+        },
+        {
+          "id": "max_steps_match_train_volume",
+          "message": "max_steps=1563 matches train_samples=100000/global_batch=64",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_candidate_budget",
+          "message": "K=32, sketch_dim=64, r_max=32, rank=8",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_calibration_1024",
+          "message": "final CovRA calibration uses 1024 training-only samples",
+          "status": "PASS"
+        },
+        {
+          "id": "covra_module_scalar_template",
+          "message": "not a CovRA-M config",
+          "status": "SKIP"
+        },
+        {
+          "id": "budget_policy",
+          "message": "strict equal-trainable-parameter budget policy is locked",
+          "status": "PASS"
+        },
+        {
+          "id": "adapter_fp32_base_bf16",
+          "message": "frozen base BF16 and adapter FP32 are configured",
+          "status": "PASS"
+        },
+        {
+          "id": "dropout_zero",
+          "message": "lora.dropout=0",
+          "status": "PASS"
+        },
+        {
+          "id": "gradient_checkpointing_off",
+          "message": "gradient checkpointing is off by default",
+          "status": "PASS"
+        },
+        {
+          "id": "target_modules_qkvo",
+          "message": "target modules match q/k/v/o projection set",
+          "status": "PASS"
+        },
+        {
+          "id": "legacy_fields_isolated",
+          "message": "legacy taxonomy/procurement fields are isolated and disabled",
+          "status": "PASS"
+        },
+        {
+          "id": "unresolved_fields_marked",
+          "message": "provisional/unresolved protocol fields are explicit",
+          "status": "PASS"
+        },
+        {
+          "id": "evaluation_protocol",
+          "message": "greedy GSM8K/HumanEval and MTBench-local judge protocol fields are locked",
+          "status": "PASS"
+        },
+        {
+          "id": "aligned_baseline_semantics",
+          "message": "method-specific baseline semantics are aligned",
+          "status": "PASS"
+        }
+      ],
+      "path": "configs/dico/dico_cd_da_r8.yaml",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "checked_configs": 5,
+    "failed_checks": 0,
+    "skipped_checks": 13,
+    "status": "PASS",
+    "total_checks": 75
+  }
+}

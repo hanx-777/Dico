@@ -1,0 +1,14 @@
+inherits: ../dico/dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: ablation_covra_rank_random_init
+ablation:
+  id: covra_rank_random_init
+  reference_config: configs/dico/dico_cd_da_r8_covra_full_experimental.yaml
+  mechanism_group: rank_init_separation
+  single_factor: init_mode
+  controlled_difference_fields:
+    - dico.init.mode
+  expected_difference: Keep CovRA rank allocation and replace direction-anchored initialization with random Kaiming A and zero B.
+dico:
+  init:
+    mode: kaiming_zero_B

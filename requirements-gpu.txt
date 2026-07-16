@@ -1,0 +1,1 @@
+# 正式协议统一使用 PyTorch SDPA，不需要额外的 flash-attn 二进制包。

@@ -1,0 +1,51 @@
+inherits: ../dico/dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: ablation_covra_module_scalar
+ablation:
+  id: covra_module_scalar
+  reference_config: configs/dico/dico_cd_da_r8_covra_full_experimental.yaml
+  mechanism_group: direction_structure
+  single_factor: allocation_method
+  controlled_difference_fields:
+    - preallocation.allocation_method
+    - preallocation.module_scalar_template_formula
+    - preallocation.module_scalar_template_normalization
+    - preallocation.module_scalar_template
+  expected_difference: Collapse direction-level values to module scalar energy plus fixed rank template; all other CovRA-I-compatible protocol fields are inherited.
+preallocation:
+  allocation_method: covra_module_scalar
+  module_scalar_template_formula: w_j = 1 / j for j=1..r_max
+  module_scalar_template_normalization: sum_to_module_energy
+  module_scalar_template:
+    - 1.0
+    - 0.5
+    - 0.3333333333333333
+    - 0.25
+    - 0.2
+    - 0.16666666666666666
+    - 0.14285714285714285
+    - 0.125
+    - 0.1111111111111111
+    - 0.1
+    - 0.09090909090909091
+    - 0.08333333333333333
+    - 0.07692307692307693
+    - 0.07142857142857142
+    - 0.06666666666666667
+    - 0.0625
+    - 0.058823529411764705
+    - 0.05555555555555555
+    - 0.05263157894736842
+    - 0.05
+    - 0.047619047619047616
+    - 0.045454545454545456
+    - 0.043478260869565216
+    - 0.041666666666666664
+    - 0.04
+    - 0.038461538461538464
+    - 0.037037037037037035
+    - 0.03571428571428571
+    - 0.034482758620689655
+    - 0.03333333333333333
+    - 0.03225806451612903
+    - 0.03125

@@ -1,155 +1,189 @@
 project:
-  name: dico_rank_experiments
-  output_dir: outputs
+  name: dico_v03_protocol_aligned
+  output_dir: outputs/dico_v03
 
 seed: 42
-experiment_name: base
+experiment_name: dico_v03_base
 method: lora
-rank: 4
+rank: 8
+
+protocol:
+  reference: GoRA
+  framing: aligned_to_gora_experiment_protocol
+  note: GoRA is the protocol reference for matched model, data, training, evaluation, logging, scaling, and budget accounting.
+  unresolved_fields:
+    - field: model.revision
+      status: unresolved
+      reason: Llama-3.1-8B-Base repository revision is not yet locked to an immutable commit hash; E00 must record the resolved model revision before formal reporting.
+    - field: model.tokenizer_revision
+      status: unresolved
+      reason: Tokenizer revision follows the base model until an immutable tokenizer commit hash is locked; manifest validation will report UNRESOLVED until then.
+    - field: preallocation.rho
+      status: provisional
+      reason: CovRA sign-split threshold is pre-registered for the main run and must be sensitivity-checked; do not tune on test results.
+    - field: preallocation.response_agg_groups
+      status: provisional
+      reason: Group count defaults to 4 for random response aggregation; 4-vs-8 remains an appendix/sensitivity question.
+    - field: preallocation.r_min_multiplier
+      status: provisional
+      reason: r_min is derived from multiplier 0.25 (rank 8 -> r_min 2); r_min 2-vs-4 remains unresolved until pre-registered sensitivity checks.
 
 model:
-  name_or_path: /ai/lxw/lxw/Qwen3-8B
+  name_or_path: meta-llama/Llama-3.1-8B-Base
   torch_dtype: bfloat16
   device_map: auto
   load_in_8bit: false
   load_in_4bit: false
-  bnb_4bit_quant_type: nf4
-  bnb_4bit_use_double_quant: true
+  attn_implementation: sdpa
 
 data:
-  dataset_name: openai/gsm8k
-  dataset_config: main
-  train_path: data/gsm8k/main/train.jsonl
+  dataset_name: protocol_aligned
+  train_path: data/metamathqa/train.jsonl
   eval_path: data/gsm8k/main/test.jsonl
-  max_length: 512
-  train_limit: null
+  train_dataset: MetaMathQA-100K  # stored at data/metamathqa/train.jsonl; run: python scripts/download_data.py
+  eval_datasets:
+    - gsm8k
+  max_length: 1024
+  train_limit: 100000               # fixed first 100K unique members; the shared dataset_seed below
+                                     # deterministically shuffles exposure order for every method/run
   eval_limit: null
   num_workers: 4
+  shuffle: true
+  dataset_seed: 42
+  token_cache_dir: cache/tokenized
 
 training:
-  max_steps: 1000
-  batch_size: 4
-  gradient_accumulation_steps: 2
-  learning_rate: 2.0e-4
-  weight_decay: 0.0
-  warmup_ratio: 0.03
+  max_steps: 1563                  # 1 epoch over train_limit=100000 at global batch 64 (ceil(100000/64)), GoRA protocol
+  batch_size: 4                    # single-GPU microbatch; batch_size × grad_accum = 64 in the main protocol
+  per_gpu_batch_size: null         # DDP fallback only: effective_batch = per_gpu_batch_size × num_gpus × grad_accum
+                                   # If single-GPU global batch 64 OOMs, use 3 × 3 × 7 = 63 and report as hardware adaptation.
+  gradient_accumulation_steps: 16
+  learning_rate: 5.0e-5
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 5.0e-4              # GoRA appendix table value for Llama-3.1-8B-Base
+  max_grad_norm: 1.0                # protocol gradient clipping, applied before optimizer.step() and recorded in manifest
+  warmup_ratio: 0.03               # cosine+warmup scheduler; warmup_steps = max_steps × warmup_ratio
+  auto_warmup_steps: 10
+  auto_warmup_rate: 0.05
+  lr_decay_ratio: 0.1              # cosine decays down to lr_decay_ratio × peak_lr, not to 0 (GoRA protocol)
   logging_steps: 10
-  eval_steps: 0
   save_steps: 1000
-  gradient_checkpointing: true
+  gradient_checkpointing: false
   save_optimizer_state: false
+  sample_exposure_policy: repeat_from_fixed_order_to_max_steps
+  optimizer_backend: adamw
+  ddp_timeout_minutes: 180          # NCCL process-group timeout under DDP (default 10min is too short:
+                                    # final GSM8K/HumanEval accuracy eval runs on rank-0 only and can take
+                                    # ~30-60min on the full eval set while other ranks wait at the barrier)
 
 lora:
+  injection: static
+  scaling: alpha_over_r           # standard LoRA scaling; final CovRA also fixes alpha_m/r_m per module
+                                   # allocation_method covra_full/covra_independent/covra_module_scalar):
+                                   # trainer.py fixes
+                                   # alpha_m/r_m = alpha_ref/r_ref per module instead
+                                   # (3.1節). alpha_ref/r_ref default to alpha/rank
+                                   # below if not set explicitly.
   alpha: 16
-  dropout: 0.05
+  dropout: 0
+  adapter_dtype: float32          # protocol: frozen base may be BF16, adapter parameters stay FP32
   target_modules:
     - q_proj
     - k_proj
     - v_proj
     - o_proj
-    - gate_proj
-    - up_proj
-    - down_proj
   bias: none
-  max_rank_multiplier: 2
+  max_rank_multiplier: 4
 
 budget:
   mode: equal_trainable_params
   warning_threshold: 0.01
   enforce_target_ratio: 1.0
-  enforce_min_ratio: 0.97
+  enforce_min_ratio: 0.98
 
 calibration:
   enabled: true
-  num_samples: 128
+  num_samples: 1024
   batch_size: 4
   seed: 42
   shuffle: false
-  save_dir: outputs/preallocations
+  save_dir: outputs/dico_v03/preallocations
 
 preallocation:
   atom_mode: svd
-  fallback_atom_mode: module_proxy
-  allocation_method: directional_budgeted
-  aggregation_mode: weighted_log
-  weighted_topk_k: auto
-  top_k_atoms: 8
-  sketch_dim: 32
+  allocation_method: covra_full
+  top_k_atoms: 32
+  sketch_dim: 64
   sketch_oversample: 24
-  compute_device: auto
+  compute_device: auto              # formal CovRA overrides this to cuda in configs/dico/base.yaml
   module_chunk_size: 32
   progress_logging_steps: 1
   sketch_seed: 42
   sketch_dtype: float32
   answer_only: true
   profile_norm_mode: streaming_estimate
-  beta: 1.0
-  gamma: 1.0
-  delta: 1.0
-  epsilon_cov: 0.05
-  use_soft_tail: true
+  lambda_cov: 1.0            # CovRA λ: hybrid grouped sketch mixing weight (Y_hat = [lambda*Y_agg | Y^(1) | ...])
+  response_agg_groups: 4     # CovRA B: number of random response-aggregation blocks when no real task labels exist
+  rho: 0.05                  # CovRA ρ: pre-registered sign-split threshold; run sensitivity in the appendix.
+  sign_split: true
+  type_scaling: true
+  log_compression: true
+  solver: dp
+  subspace_init: direction_anchored
   eta: 0.98
+  r_min_multiplier: 0.25
+  r_max_multiplier: 4.0
   allow_rank_beyond_selected_evidence: true
   evidence_selection:
     max_selected_atoms: auto
-    sparse_stop_by_coverage: true
-    coverage_stop_threshold: 0.05
-  atom_weight_normalization: none
-  use_cost_aware_allocation: true
-  atom_utility_floor: 0.0
-  score_type: coverage
-  coverage_lambda: 0.5
-  r_min_multiplier: 0.25
-  r_max_multiplier: 2
-  rank_allocator:
-    atom_to_rank: marginal_curve
-    smoothing: layer_diffusion
-    utility:
-      align_gamma: 1.0
-      use_log1p: true
-      type_normalization: median
-    marginal_curve:
-      decay: sqrt
-      geometric_lambda: 0.75
-    prototype_bundle:
-      similarity_threshold: 0.8
-      residual_weight: 0.25
-    soft_slot:
-      temperature: 1.0
-      slot_decay: 0.15
-    cost_beta: 0.5
-    budget_guardrails:
-      max_rank_per_module: null
-      layer_cap_multiplier: 1.8
-      type_cap_multiplier: 2.0
-      type_budget_bounds: null
-    layer_diffusion:
-      kernel: [0.25, 0.50, 0.25]
-    concentration_penalty:
-      lambda: 0.02
-  save_atom_logs: true
 
-dynamic:
-  enabled: false
-  update_ratios: [0.2, 0.4, 0.6]
-  freeze_after_ratio: 0.6
-  move_ratio: 0.2
-  score_ema_decay: 0.9
-  grad_weight: 0.5
-  update_weight: 0.5
-  score_smoothing: 1.0e-6
-  allocation_temperature: 1.0
-  r_min_multiplier: 0.25
-  r_max_multiplier: 2
+dico:
+  version: cd_da
+  profile:
+    domain: sketch
+    eps: 1.0e-6
+  split:
+    enabled: true
+    mode: sign
+    physical_merge: true
+  coverage:
+    objective: group_nsw
+    eps: 1.0e-6
+    residual_space: profile
+    kappa_calibration:            # 3.3.3節: fall a module type back to window_h=0 when
+      enabled: true                # its cross-layer |kappa| distribution is statistically
+      alpha: 0.1                   # indistinguishable from a random-direction null
+      max_pairs: 2000
+  init:
+    mode: direction_anchored
+    zero_B: true
+  legacy_covra_v05:
+    note: Historical taxonomy/procurement controls retained only for allocation_method=covra_v05, not final CovRA.
+    taxonomy:
+      enabled: false
+      alpha: 0.05
+      permutation_count: 1000
+      fdr:
+        enabled: true
+        scope: per_module_type
+        method: BH
+    procurement:
+      mode: density_greedy
+      beta: 1.0
+      reserve_queue: true
+      relaxation_fallback: true
 
 evaluation:
   metric: gsm8k_accuracy
-  protocol: internal_zero_shot
+  compute_loss: false
+  protocol: aligned_zero_shot
   prompt_style: sft_cot_hash
   answer_extraction: strict_then_flexible
   max_batches: 4
+  batch_size: 4
   mid_eval_loss_only:
-    enabled: true
+    enabled: false
     every_n_steps: 50
     max_batches: 4
   compute_accuracy: true
@@ -159,3 +193,16 @@ evaluation:
   stop_sequences:
     - "\nQuestion:"
     - "<|im_end|>"
+  mtbench_local:
+    enabled: false
+    judge_model: meta-llama/Llama-3.1-70B-Instruct
+    judge_prompt_version: fastchat-v0.2.36
+    conversation_template: llama-3
+    temperature: 0.0
+    seed: 0
+    swap_positions: true
+    max_retries: 2
+
+runtime:
+  require_flash_attention_2: false
+  protocol_scope: formal_e01

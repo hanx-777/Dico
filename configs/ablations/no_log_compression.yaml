@@ -1,0 +1,11 @@
+inherits: ../dico/dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: ablation_no_log_compression
+ablation:
+  id: no_log_compression
+  reference_config: configs/dico/dico_cd_da_r8_covra_full_experimental.yaml
+  mechanism_group: utility_scaling
+  single_factor: log_compression
+  expected_difference: Disable logarithmic compression of per-rank utility while preserving type scaling and sign split.
+preallocation:
+  log_compression: false

@@ -6,3 +6,7 @@ rank: 4
 
 rank_strategy:
   init: uniform
+  dynamic: false
+
+dynamic:
+  enabled: false

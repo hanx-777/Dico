@@ -1,0 +1,34 @@
+inherits: base.yaml
+
+experiment_name: adalora_r8_protocol_aligned
+method: adalora
+rank: 8
+
+adalora:
+  init_rank: 12
+  target_rank: 8
+  tinit: 150
+  tfinal: 900
+  deltaT: 1
+  beta1: 0.85
+  beta2: 0.85
+  orth_reg_weight: 0.5
+
+training:
+  learning_rate: 5.0e-4
+
+calibration:
+  enabled: false
+
+lora:
+  injection: adalora
+  scaling: alpha_over_r
+  max_rank_multiplier: 1.5
+
+preallocation:
+  r_max_multiplier: 1.5
+
+dico:
+  version: adalora
+  init:
+    mode: adalora_svd_zero_E

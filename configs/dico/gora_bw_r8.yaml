@@ -1,0 +1,17 @@
+inherits: base.yaml
+
+experiment_name: gora_bw_r8_protocol_aligned
+method: gora_bw
+rank: 8
+gora_bw:
+  enabled: true
+  r_ref: 8
+  compute_device: cpu
+  module_chunk_size: 16
+  progress_logging_steps: 1
+lora:
+  scaling: alpha_over_sqrt_r
+dico:
+  version: gora_bw
+  init:
+    mode: gora_reference

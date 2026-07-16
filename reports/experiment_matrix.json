@@ -1,0 +1,172 @@
+{
+  "experiments": [
+    {
+      "blocked_items": [],
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_experiment.py --config configs/dico/lora_r8.yaml --override experiment_name=e00_lora_pilot_seed42 --override seed=42 --override calibration.seed=42 --override preallocation.sketch_seed=42 --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override training.max_steps=1",
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_experiment.py --config configs/dico/dico_cd_da_r8.yaml --override experiment_name=e00_covra_pilot_seed42 --override seed=42 --override calibration.seed=42 --override preallocation.sketch_seed=42 --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override training.max_steps=1",
+        "NUM_GPUS=3 bash scripts/run_ddp.sh configs/dico/dico_cd_da_r8.yaml --override experiment_name=e00_covra_ddp_fallback_seed42 --override seed=42 --override calibration.seed=42 --override training.max_steps=1"
+      ],
+      "id": "E00",
+      "notes": [
+        "Default protocol is single GPU per seed: batch 4 × grad_accum 16 = global batch 64.",
+        "DDP command is fallback only: 3 × per-device batch 3 × grad_accum 7 = global batch 63 by script default."
+      ],
+      "priority": "must",
+      "purpose": "Verify single-GPU global batch 64, logging, parameter counts, and CovRA allocation before real GPU runs.",
+      "status": "READY_DRY_RUN",
+      "title": "single-GPU scheduling pilot"
+    },
+    {
+      "blocked_items": [
+        "eva"
+      ],
+      "commands": [
+        "python scripts/platform_train.py --config configs/dico/lora_r8.yaml --config configs/dico/adalora_r8.yaml --config configs/dico/gora_public_r8.yaml --config configs/dico/dico_cd_da_r8.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e01_llama3_r8_aligned_sdpa_v4"
+      ],
+      "id": "E01",
+      "notes": [
+        "GoRA-public uses the locked official commit behavior and preserves its realized method-faithful budget.",
+        "EVA is outside the current implementation scope and remains protocol-blocked.",
+        "CovRA-I and CovRA-M are mechanism controls and are scheduled separately in E04/E05, not mixed into the E01 main table.",
+        "adalora status=IMPLEMENTED_NOT_GPU_RUN using configs/dico/adalora_r8.yaml; eva status=BLOCKED_BY_UNRESOLVED_PROTOCOL; gora_public status=IMPLEMENTED_NOT_GPU_RUN."
+      ],
+      "priority": "must",
+      "purpose": "Main fair comparison for implemented methods under GoRA-aligned single-GPU global batch 64 scheduling.",
+      "status": "READY_DRY_RUN",
+      "title": "Llama3 r8 main results"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/dico/lora_r8.yaml --config configs/dico/gora_bm_r8.yaml --config configs/dico/dico_cd_da_r8.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e02_llama3_r8_strict_budget_sdpa_v4"
+      ],
+      "id": "E02",
+      "notes": [
+        "Use E01 artifacts if their budget error is already zero or within the registered strict rule."
+      ],
+      "priority": "must",
+      "purpose": "Audit LoRA, GoRA-BM, and CovRA actual trainable parameter budgets; rerun only if E01 logs are not strict-budget.",
+      "status": "READY_DRY_RUN",
+      "title": "strict-budget audit"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_experiment.py --config configs/dico/gora_paper_gamma08.yaml --override experiment_name=e03_gora_gamma08_seed42 --override seed=42 --override calibration.seed=42 --override preallocation.sketch_seed=42 --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override training.max_steps=1563",
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_experiment.py --config configs/dico/gora_paper_n64.yaml --override experiment_name=e03_gora_n64_seed42 --override seed=42 --override calibration.seed=42 --override preallocation.sketch_seed=42 --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override training.max_steps=1563"
+      ],
+      "id": "E03",
+      "notes": [
+        "Do not use E03 to select the main GoRA-public setting from test results."
+      ],
+      "priority": "must",
+      "purpose": "Appendix-only sensitivity for GoRA N/gamma/warmup conflicts.",
+      "status": "READY_DRY_RUN",
+      "title": "GoRA configuration conflict sensitivity"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/dico/dico_cd_da_r8.yaml --config configs/ablations/covra_independent.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e04_covra_vs_covra_i"
+      ],
+      "id": "E04",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Compare CovRA against CovRA-I with one unique difference: conditional residual value vs fixed independent energy.",
+      "status": "READY_DRY_RUN",
+      "title": "conditional valuation"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/ablations/covra_independent.yaml --config configs/ablations/covra_module_scalar.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e05_covra_i_vs_covra_m"
+      ],
+      "id": "E05",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Compare CovRA-I against CovRA-M; response-overlap analysis reuses artifacts and adds no training.",
+      "status": "READY_DRY_RUN",
+      "title": "direction-level structure"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/dico/lora_r8.yaml --config configs/ablations/uniform_rank_covra_init.yaml --config configs/ablations/covra_rank_random_init.yaml --config configs/dico/dico_cd_da_r8.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e06_rank_init_separation"
+      ],
+      "id": "E06",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Separate rank allocation benefit from direction-subspace initialization benefit.",
+      "status": "READY_DRY_RUN",
+      "title": "rank/init separation"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/ablations/global_only.yaml --config configs/ablations/grouped_only.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e07_global_grouped"
+      ],
+      "id": "E07",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Ablate grouped response statistics without changing training, budget, or evaluation interface.",
+      "status": "READY_DRY_RUN",
+      "title": "global/grouped sketch ablation"
+    },
+    {
+      "blocked_items": [],
+      "commands": [
+        "python scripts/platform_train.py --config configs/ablations/no_sign_split.yaml --config configs/ablations/no_type_scaling.yaml --config configs/ablations/no_log_compression.yaml --config configs/ablations/proportional_rounding.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e08_component_ablations"
+      ],
+      "id": "E08",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Test sign split, type scaling, log compression, and proportional rounding as one-factor changes.",
+      "status": "READY_DRY_RUN",
+      "title": "supporting component ablations"
+    },
+    {
+      "blocked_items": [
+        "mtbench_local_70b_judge_execution:NOT_EXECUTED"
+      ],
+      "commands": [
+        "python scripts/baseline_status.py --json-output reports/baseline_status.json --markdown-output reports/baseline_status.md",
+        "python scripts/experiment_matrix.py --json-output reports/experiment_matrix.json --markdown-output reports/experiment_matrix.md",
+        "python scripts/audit_status.py --output-dir reports/audit",
+        "python scripts/e00_readiness.py --json-output reports/e00_readiness.json --markdown-output reports/e00_readiness.md --require-gpu-count 0",
+        "python scripts/protocol_preflight.py --json-output reports/protocol_preflight.json --markdown-output reports/protocol_preflight.md",
+        "python scripts/static_acceptance.py --json-output reports/static_acceptance.json --markdown-output reports/static_acceptance.md",
+        "python scripts/directory_structure.py --json-output reports/directory_structure.json --markdown-output reports/directory_structure.md",
+        "python scripts/changed_files_report.py --json-output reports/changed_files.json --markdown-output reports/changed_files.md",
+        "python scripts/validate_run_manifest.py --output-dir outputs/e01_llama3_r8_main --json-output reports/run_manifest_validation.json --markdown-output reports/run_manifest_validation.md",
+        "python scripts/collect_run_manifests.py --output-dir outputs/e01_llama3_r8_main --json-output reports/run_manifest_summary.json --markdown-output reports/run_manifest_summary.md",
+        "python scripts/mtbench_local_judge.py --questions-jsonl data/mtbench/questions.jsonl --answers-jsonl outputs/mtbench/model_answer/covra.jsonl --output-dir outputs/mtbench/local_judge/covra --dry-run",
+        "python scripts/final_delivery_report.py --json-output reports/final_delivery.json --markdown-output reports/final_delivery.md --test-result '<paste latest pytest result>'"
+      ],
+      "id": "E09",
+      "notes": [],
+      "priority": "must",
+      "purpose": "Collect calibration/allocation/training timing, memory, tokens/s, and budget fields from E01/E04-E08 artifacts.",
+      "status": "PARTIALLY_READY",
+      "title": "efficiency and budget report"
+    },
+    {
+      "blocked_items": [
+        "r32 formal training requires successful E10 GPU pilot",
+        "Llama2 protocol/revisions unresolved",
+        "eva",
+        "LoRA-GA/rsLoRA/LoRA+ wrappers not implemented"
+      ],
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_experiment.py --config configs/dico/dico_cd_da_r32_pilot.yaml --override experiment_name=e10_covra_r32_pilot_seed42 --override seed=42 --override calibration.seed=42 --override preallocation.sketch_seed=42 --override training.batch_size=4 --override training.gradient_accumulation_steps=16 --override training.max_steps=1",
+        "python scripts/platform_train.py --config configs/dico/dico_cd_da_r32_pilot.yaml --num-gpus 3 --child-num-processes 1 --seeds 42,43,44 --batch-size 4 --grad-accum 16 --output-dir outputs/e10_covra_r32_pilot --dry-run"
+      ],
+      "id": "E10",
+      "notes": [],
+      "priority": "recommended",
+      "purpose": "r32, Llama2, EVA, LoRA-GA/rsLoRA/LoRA+ and code-task mechanism extensions after must-run claims are supported.",
+      "status": "PARTIALLY_READY",
+      "title": "recommended extensions"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+inherits: ../dico/dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: ablation_uniform_rank_covra_init
+ablation:
+  id: uniform_rank_covra_init
+  reference_config: configs/dico/dico_cd_da_r8_covra_full_experimental.yaml
+  mechanism_group: rank_init_separation
+  single_factor: rank_override
+  expected_difference: Override final ranks to the uniform reference rank while preserving CovRA direction-anchored initialization.
+preallocation:
+  rank_override: uniform_ref
+dico:
+  init:
+    mode: direction_anchored
+    zero_B: true

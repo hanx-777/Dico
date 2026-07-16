@@ -1,0 +1,5 @@
+inherits: ../dico/dico_cd_da_r8.yaml
+
+experiment_name: ablation_scaling_alpha_over_sqrtr
+lora:
+  scaling: alpha_over_sqrt_r

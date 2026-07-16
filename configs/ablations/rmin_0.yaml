@@ -1,0 +1,5 @@
+inherits: ../dico/dico_cd_da_r8.yaml
+
+experiment_name: ablation_rmin_0
+preallocation:
+  r_min_multiplier: 0.0

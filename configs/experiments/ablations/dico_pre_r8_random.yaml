@@ -6,9 +6,13 @@ rank: 8
 
 rank_strategy:
   init: dico_pre
+  dynamic: false
 
 preallocation:
   allocation_method: random_at_budget
   aggregation_mode: weighted_log
   atom_weight_normalization: none
   use_cost_aware_allocation: true
+
+dynamic:
+  enabled: false

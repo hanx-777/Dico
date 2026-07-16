@@ -1,0 +1,11 @@
+inherits: ../dico/dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: ablation_global_only
+ablation:
+  id: global_only
+  reference_config: configs/dico/dico_cd_da_r8_covra_full_experimental.yaml
+  mechanism_group: sketch_blocks
+  single_factor: sketch_block_mode
+  expected_difference: Use only the global response sketch block and disable grouped sketch blocks.
+preallocation:
+  sketch_block_mode: global_only

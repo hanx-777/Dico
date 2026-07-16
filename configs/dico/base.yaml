@@ -1,0 +1,146 @@
+inherits: ../base.yaml
+
+project:
+  name: dico_v03_protocol_aligned
+  output_dir: outputs/dico_v03
+
+experiment_name: dico_v03_base
+rank: 8
+
+protocol:
+  reference: GoRA
+  framing: aligned_to_gora_experiment_protocol
+  note: GoRA is used as the protocol reference for model/data/training/eval parity, not as the implementation host.
+  unresolved_fields:
+    - field: model.revision
+      status: unresolved
+      reason: Llama-3.1-8B-Base repository revision is not yet locked to an immutable commit hash; E00 must record the resolved model revision before formal reporting.
+    - field: model.tokenizer_revision
+      status: unresolved
+      reason: Tokenizer revision follows the base model until an immutable tokenizer commit hash is locked; manifest validation will report UNRESOLVED until then.
+    - field: preallocation.rho
+      status: provisional
+      reason: CovRA sign-split threshold is pre-registered for the main run and must be sensitivity-checked; do not tune on test results.
+    - field: preallocation.response_agg_groups
+      status: provisional
+      reason: Group count defaults to 4 for random response aggregation; 4-vs-8 remains an appendix/sensitivity question.
+    - field: preallocation.r_min_multiplier
+      status: provisional
+      reason: r_min is derived from multiplier 0.25 (rank 8 -> r_min 2); r_min 2-vs-4 remains unresolved until pre-registered sensitivity checks.
+
+model:
+  name_or_path: meta-llama/Llama-3.1-8B-Base
+  torch_dtype: bfloat16
+  attn_implementation: sdpa
+
+data:
+  dataset_name: protocol_aligned
+  train_dataset: MetaMathQA-100K
+  eval_datasets:
+    - gsm8k
+  max_length: 1024
+  shuffle: true
+  dataset_seed: 42
+  token_cache_dir: cache/tokenized
+
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 16
+  learning_rate: 5.0e-5
+  weight_decay: 5.0e-4
+  max_grad_norm: 1.0
+  warmup_ratio: 0.03
+  gradient_checkpointing: false
+  sample_exposure_policy: repeat_from_fixed_order_to_max_steps
+  optimizer_backend: adamw
+
+lora:
+  injection: static
+  scaling: alpha_over_r
+  alpha: 16
+  dropout: 0
+  adapter_dtype: float32
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+
+budget:
+  mode: equal_trainable_params
+  enforce_target_ratio: 1.0
+  enforce_min_ratio: 0.98
+
+calibration:
+  enabled: true
+  num_samples: 1024
+  batch_size: 4
+  seed: 42
+  shuffle: false
+
+preallocation:
+  atom_mode: svd
+  allocation_method: covra_full
+  top_k_atoms: 32
+  sketch_dim: 64
+  lambda_cov: 1.0
+  response_agg_groups: 4
+  rho: 0.05
+  sign_split: true
+  type_scaling: true
+  log_compression: true
+  solver: dp
+  subspace_init: direction_anchored
+  eta: 0.98
+  r_min_multiplier: 0.25
+  r_max_multiplier: 4.0
+  allow_rank_beyond_selected_evidence: true
+  compute_device: cuda
+  allocation_device: cuda
+  verify_cpu_reference: true
+
+dico:
+  version: cd_da
+  profile:
+    domain: sketch
+    eps: 1.0e-6
+  split:
+    enabled: true
+    mode: sign
+    physical_merge: true
+  coverage:
+    objective: group_nsw
+    eps: 1.0e-6
+    residual_space: profile
+  init:
+    mode: direction_anchored
+    zero_B: true
+  legacy_covra_v05:
+    note: Historical taxonomy/procurement controls retained only for allocation_method=covra_v05, not final CovRA.
+    taxonomy:
+      enabled: false
+      alpha: 0.05
+      permutation_count: 1000
+      fdr:
+        enabled: true
+        scope: per_module_type
+        method: BH
+    procurement:
+      mode: density_greedy
+      beta: 0.5
+      reserve_queue: true
+      relaxation_fallback: true
+
+evaluation:
+  mtbench_local:
+    enabled: false
+    judge_model: meta-llama/Llama-3.1-70B-Instruct
+    judge_prompt_version: fastchat-v0.2.36
+    conversation_template: llama-3
+    temperature: 0.0
+    seed: 0
+    swap_positions: true
+    max_retries: 2
+
+runtime:
+  require_flash_attention_2: false

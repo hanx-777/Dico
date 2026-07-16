@@ -1,0 +1,18 @@
+inherits: dico_cd_da_r8_covra_full_experimental.yaml
+
+experiment_name: dico_cd_da_r32_pilot
+rank: 32
+
+training:
+  # Pilot only: verifies r32 allocation/config semantics before high-cost formal runs.
+  max_steps: 1
+
+evaluation:
+  compute_accuracy: false
+
+preallocation:
+  # r32 high-budget pilot: r_max = rank * r_max_multiplier = 128.
+  # Final CovRA requires K >= r_max; keep sketch_dim >= K for startup validation.
+  top_k_atoms: 128
+  sketch_dim: 192
+  sketch_oversample: 64

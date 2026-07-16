@@ -1,0 +1,6 @@
+inherits: ../dico/dico_cd_da_r8.yaml
+
+experiment_name: ablation_top_k_atoms_64
+preallocation:
+  top_k_atoms: 64
+  sketch_dim: 96

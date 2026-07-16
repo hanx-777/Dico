@@ -26,3 +26,9 @@ outputs*/
 *.log
 *.pid
 *.csv
+
+# Local-only workspace state and large experiment inputs.
+.idea/
+data/.DS_Store
+data/metamathqa/
+cache/

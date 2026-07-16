@@ -31,11 +31,6 @@ class SvdAtomRecord:
     lambda_cov: float
     utility: float
     module_importance: float
-    sample_weights: torch.Tensor | None = None
-    signed_response_sum: float = 0.0
-    signed_response_abs_sum: float = 0.0
-    alignment: float = 0.0
-    selected_coverage_gain: float = 0.0
     selected: bool = False
     u: torch.Tensor | None = None
     v: torch.Tensor | None = None
@@ -63,10 +58,6 @@ class SvdAtomRecord:
             "lambda_cov": self.lambda_cov,
             "utility": self.utility,
             "module_importance": self.module_importance,
-            "signed_response_sum": self.signed_response_sum,
-            "signed_response_abs_sum": self.signed_response_abs_sum,
-            "alignment": self.alignment,
-            "selected_coverage_gain": self.selected_coverage_gain,
             "selected": self.selected,
             "atom_mode": self.atom_mode,
             "prefix_legal": self.prefix_legal,
@@ -145,7 +136,7 @@ def signed_projection_from_token_factors(
         return torch.tensor(0.0)
     left = gradients.float() @ u.float()
     right = activations.float() @ v.float()
-    return torch.sum(left * right)
+    return torch.mean(left * right)
 
 
 def sample_response_norm_from_token_factors(
@@ -160,11 +151,11 @@ def sample_response_norm_from_token_factors(
     if mode == "none":
         return torch.tensor(1.0)
     if mode == "exact_small":
-        response = gradients.T @ activations
+        response = gradients.T @ activations / max(activations.shape[0], 1)
         return torch.linalg.norm(response)
     if mode == "streaming_estimate":
         token_norm_sq = torch.sum(activations * activations, dim=-1) * torch.sum(gradients * gradients, dim=-1)
-        return torch.sqrt(torch.sum(token_norm_sq).clamp_min(0.0))
+        return torch.sqrt(torch.sum(token_norm_sq).clamp_min(0.0)) / max(activations.shape[0], 1)
     raise ValueError(f"Unsupported profile_norm_mode: {mode}")
 
 
@@ -174,15 +165,6 @@ def gradient_conflict(alpha: torch.Tensor) -> float:
     p_pos = float((alpha > 0).sum().item()) / total
     p_neg = float((alpha < 0).sum().item()) / total
     return max(0.0, min(1.0, 4.0 * p_pos * p_neg))
-
-
-def direction_alignment(alpha: torch.Tensor, eps: float = 1e-12) -> float:
-    alpha = alpha.detach().flatten().float()
-    numerator = torch.abs(torch.sum(alpha))
-    denominator = torch.sum(torch.abs(alpha)) + float(eps)
-    if float(denominator.item()) <= float(eps):
-        return 0.0
-    return max(0.0, min(1.0, float((numerator / denominator).item())))
 
 
 def normalize_signed_profiles(
@@ -203,18 +185,8 @@ def normalize_signed_profiles(
     return centered / (norms + eps)
 
 
-def coverage_residual(
-    profile: torch.Tensor,
-    basis: torch.Tensor,
-    sample_weights: torch.Tensor | None = None,
-) -> float:
+def coverage_residual(profile: torch.Tensor, basis: torch.Tensor) -> float:
     profile = profile.float()
-    if sample_weights is not None:
-        weights = sample_weights.float().reshape(-1).to(profile.device)
-        sqrt_weights = torch.sqrt(weights.clamp_min(0.0))
-        profile = profile * sqrt_weights
-        if basis.numel() > 0:
-            basis = basis.float().to(profile.device) * sqrt_weights.reshape(-1, 1)
     if basis.numel() == 0 or basis.shape[1] == 0:
         return float(torch.sum(profile * profile).item())
     residual = profile - basis @ (basis.T @ profile)
@@ -231,8 +203,14 @@ def atom_utility(
     floor: float = 0.0,
     cost_aware: bool = True,
 ) -> float:
-    del beta, delta, cost_aware
-    value = math.log1p(max(float(coverage), 0.0) * max(float(atom.alignment), 0.0) ** float(gamma))
+    value = (
+        max(atom.module_importance, 0.0) ** float(beta)
+        * max(atom.spectral_ratio, 0.0) ** float(gamma)
+        * max(1.0 - atom.conflict, 0.0) ** float(delta)
+        * (float(lambda_cov) * float(coverage) + (1.0 - float(lambda_cov)))
+    )
+    if cost_aware:
+        value /= max(int(atom.cost), 1)
     return max(float(floor), float(value))
 
 
@@ -258,22 +236,15 @@ def select_coverage_evidence(
     profile_dim = next((int(atom.profile.numel()) for atom in atoms if atom.profile is not None), 0)
     empty_basis = torch.empty(profile_dim, 0)
     bases: dict[str, torch.Tensor] = {}
+    selected_counts: dict[str, int] = {}
     selected: list[SvdAtomRecord] = []
     stop_threshold = float(coverage_stop_threshold if coverage_stop_threshold is not None else epsilon_cov)
-
-    def weighted_profile(atom: SvdAtomRecord) -> torch.Tensor:
-        assert atom.profile is not None
-        profile = atom.profile.float()
-        if atom.sample_weights is None:
-            return profile
-        weights = atom.sample_weights.float().reshape(-1).to(profile.device)
-        return profile * torch.sqrt(weights.clamp_min(0.0))
 
     while len(selected) < int(max_selected_atoms):
         candidates = [
             atom
             for atom in atoms
-            if not atom.selected and atom.profile is not None
+            if not atom.selected and atom.profile is not None and atom.atom_index == selected_counts.get(atom.module_name, 0)
         ]
         if not candidates:
             break
@@ -282,7 +253,7 @@ def select_coverage_evidence(
         for atom in candidates:
             mod_type = atom.module_name.split('.')[-1]
             basis = bases.get(mod_type, empty_basis)
-            coverages[id(atom)] = coverage_residual(weighted_profile(atom), basis)
+            coverages[id(atom)] = coverage_residual(atom.profile, basis)
             
         max_cov = max(coverages.values()) if coverages else 0.0
         if sparse_stop_by_coverage and max_cov < stop_threshold:
@@ -291,7 +262,6 @@ def select_coverage_evidence(
         for atom in candidates:
             cov = coverages[id(atom)]
             atom.coverage = cov
-            atom.selected_coverage_gain = cov
             atom.lambda_cov = lambda_cov
             atom.prefix_legal = True
             atom.utility = atom_utility(
@@ -309,11 +279,11 @@ def select_coverage_evidence(
             key=lambda atom: (atom.utility, atom.coverage, atom.spectral_ratio, -atom.cost, atom.module_name, -atom.atom_index),
         )
         best.selected = True
-        best.selected_coverage_gain = best.coverage
         selected.append(best)
+        selected_counts[best.module_name] = selected_counts.get(best.module_name, 0) + 1
         
         best_mod_type = best.module_name.split('.')[-1]
-        bases[best_mod_type] = append_gram_schmidt(bases.get(best_mod_type, empty_basis), weighted_profile(best))
+        bases[best_mod_type] = append_gram_schmidt(bases.get(best_mod_type, empty_basis), best.profile)
     return selected
 
 
@@ -660,7 +630,7 @@ def extract_svd_atom_records(
             if a_tokens.numel() == 0:
                 return
             omega = omegas[name]
-            y_states[name] += g_tokens.T @ (a_tokens @ omega)
+            y_states[name] += g_tokens.T @ (a_tokens @ omega) / max(a_tokens.shape[0], 1)
 
         _run_backward_and_stream(
             model,
@@ -689,7 +659,7 @@ def extract_svd_atom_records(
             q = q_states[name]
             if q.numel() == 0 or a_tokens.numel() == 0:
                 return
-            b_states[name] += (g_tokens @ q).T @ a_tokens
+            b_states[name] += (g_tokens @ q).T @ a_tokens / max(a_tokens.shape[0], 1)
 
         _run_backward_and_stream(
             model,
@@ -750,7 +720,6 @@ def extract_svd_atom_records(
     total_samples = sum(int(batch["input_ids"].shape[0]) for batch in calibration_batches)
     alpha = torch.zeros(total_samples, len(atoms), dtype=torch.float32, device=compute_device)
     denominators = torch.zeros(total_samples, dtype=torch.float32, device=compute_device)
-    token_counts = torch.zeros(total_samples, dtype=torch.float32, device=compute_device)
     module_norms = {name: torch.zeros(total_samples, dtype=torch.float32, device=compute_device) for name in module_names}
     atom_offsets = {(atom.module_name, atom.atom_index): idx for idx, atom in enumerate(atoms)}
     atom_factor_cache: dict[str, tuple[torch.Tensor, torch.Tensor, list[int]]] = {}
@@ -766,15 +735,13 @@ def extract_svd_atom_records(
     for batch_index, batch in enumerate(calibration_batches, start=1):
         def profile_update(name: str, sample_idx: int, a_tokens: torch.Tensor, g_tokens: torch.Tensor) -> None:
             global_idx = sample_base + sample_idx
-            if token_counts[global_idx] <= 0:
-                token_counts[global_idx] = max(int(a_tokens.shape[0]), 1)
             norm = sample_response_norm_from_token_factors(a_tokens, g_tokens, mode=profile_norm_mode).to(device=compute_device)
             module_norms[name][global_idx] = norm
             denominators[global_idx] += norm
             if a_tokens.numel() == 0 or name not in atom_factor_cache:
                 return
             u_stack, v_stack, offsets = atom_factor_cache[name]
-            projections = torch.sum((g_tokens @ u_stack) * (a_tokens @ v_stack), dim=0)
+            projections = torch.mean((g_tokens @ u_stack) * (a_tokens @ v_stack), dim=0)
             alpha[global_idx, offsets] = projections
 
         _run_backward_and_stream(
@@ -795,8 +762,7 @@ def extract_svd_atom_records(
         sample_base += batch_size
     timings["profile_pass_sec"] = time.perf_counter() - started_at
 
-    profiles = alpha
-    sample_weights = torch.where(token_counts > 0, 1.0 / token_counts.clamp_min(1.0), torch.zeros_like(token_counts))
+    profiles = normalize_signed_profiles(alpha, denominators, mode=profile_norm_mode)
     profile_path = Path(profile_path)
     profile_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
@@ -805,14 +771,12 @@ def extract_svd_atom_records(
             "module_names": [atom.module_name for atom in atoms],
             "atom_indices": [atom.atom_index for atom in atoms],
             "profile_norm_mode": profile_norm_mode,
-            "profile_weight_mode": "inverse_token_count",
         },
         profile_path,
     )
     for idx, atom in enumerate(atoms):
         profile = profiles[:, idx].detach().cpu()
         atom.profile = profile
-        atom.sample_weights = sample_weights.detach().cpu()
         atom.profile_path = str(profile_path)
         atom.profile_index = idx
         atom.profile_norm = float(torch.linalg.norm(profile).item())
@@ -820,9 +784,6 @@ def extract_svd_atom_records(
         atom.profile_std = float(profile.std(unbiased=False).item())
         atom.profile_hash = _profile_hash(profile)
         atom.conflict = gradient_conflict(alpha[:, idx])
-        atom.signed_response_sum = float(torch.sum(alpha[:, idx]).item())
-        atom.signed_response_abs_sum = float(torch.sum(torch.abs(alpha[:, idx])).item())
-        atom.alignment = direction_alignment(alpha[:, idx])
         norms = module_norms[atom.module_name]
         valid_norms = norms[norms > 1e-8]
         if len(valid_norms) > 0:

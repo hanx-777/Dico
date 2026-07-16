@@ -89,23 +89,20 @@ PID_PATH="$OUTPUT_DIR/run_all_8.pid"
 
 dico_setup_hf_env "$NO_HF_MIRROR" "$HF_ENDPOINT_ARG"
 
-RUN_ALL_CONFIGS=(
-  configs/experiments/lora_r4.yaml
-  configs/experiments/lora_r8.yaml
-  configs/experiments/dico_pre_r4.yaml
-  configs/experiments/dico_pre_r8.yaml
-  configs/experiments/dico_dynamic_r4.yaml
-  configs/experiments/dico_dynamic_r8.yaml
-  configs/experiments/dico_predynamic_r4.yaml
-  configs/experiments/dico_predynamic_r8.yaml
-)
-
 run_all_8_foreground() {
   dico_print_run_header "$PROJECT_DIR" "$OUTPUT_DIR"
 
-  for config_path in "${RUN_ALL_CONFIGS[@]}"; do
-    run_one_experiment "$config_path"
-  done
+  run_one_experiment configs/experiments/lora_r4.yaml
+  run_one_experiment configs/experiments/lora_r8.yaml
+
+  run_one_experiment configs/experiments/dico_pre_r4.yaml
+  run_one_experiment configs/experiments/dico_pre_r8.yaml
+
+  run_one_experiment configs/experiments/dico_dynamic_r4.yaml
+  run_one_experiment configs/experiments/dico_dynamic_r8.yaml
+
+  run_one_experiment configs/experiments/dico_predynamic_r4.yaml
+  run_one_experiment configs/experiments/dico_predynamic_r8.yaml
 
   python scripts/summarize_results.py --output_dir "$OUTPUT_DIR"
 }
@@ -126,9 +123,6 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   if [[ ${#TRAIN_ARGS[@]} -gt 0 ]]; then
     printf ' %q' "${TRAIN_ARGS[@]}"
   fi
-  printf '\n'
-  printf 'configs:'
-  printf ' %s' "${RUN_ALL_CONFIGS[@]}"
   printf '\n'
   exit 0
 fi

@@ -1,0 +1,47 @@
+inherits: base.yaml
+
+experiment_name: gora_public_r8_aligned_sdpa_v4
+method: gora_public
+rank: 8
+
+protocol:
+  reference: GoRA
+  framing: official_code_first
+  note: GoRA-public locked to official commit 4037d4d6ba67ff88de87f90b943ff4e3a3649b67; script/code behavior takes precedence over paper conflicts.
+
+calibration:
+  enabled: true
+  num_samples: 1024
+  batch_size: 4
+  shuffle: false
+
+gora:
+  official_commit: 4037d4d6ba67ff88de87f90b943ff4e3a3649b67
+  gradient_estimation_samples: 1024
+  aggregation: union_mean
+  rounding: moderate
+  r_ref: 8
+  r_min: 4
+  r_max: 32
+  rank_stabilize: true
+  dynamic_scaling: true
+  scale_by_lr: true
+  init_lr: 0.05
+  b_lr_multiplier: 16.0
+  strict_budget_repair: false
+  gradient_collection: official_weight_grad_hook
+  gradient_offload_device: cpu
+  gradient_accumulation_dtype: float32
+  clear_gradient_after_offload: true
+  progress_logging_steps: 1
+
+lora:
+  injection: static
+  alpha: 16
+  dropout: 0
+  scaling: alpha_over_sqrt_r
+
+dico:
+  version: gora_public
+  init:
+    mode: gora_pseudoinverse

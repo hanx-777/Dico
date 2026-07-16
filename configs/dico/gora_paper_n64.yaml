@@ -1,0 +1,9 @@
+inherits: gora_public_r8.yaml
+
+experiment_name: gora_paper_n64_sensitivity
+calibration:
+  num_samples: 2048
+gora:
+  gradient_estimation_samples: 2048
+protocol:
+  note: Appendix-only N=64 sensitivity mapped from the official 8-GPU, batch-4 script to 2048 global calibration samples.

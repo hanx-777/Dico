@@ -1,0 +1,6 @@
+inherits: gora_public_r8.yaml
+
+experiment_name: gora_bm_r8_aligned_sdpa_v4
+method: gora_bm
+gora:
+  strict_budget_repair: true

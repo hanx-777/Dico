@@ -1,0 +1,7 @@
+inherits: gora_public_r8.yaml
+
+experiment_name: gora_paper_gamma08_sensitivity
+gora:
+  init_lr: 0.08
+protocol:
+  note: Appendix-only sensitivity using the MetaMath gamma=.08 value reported in the paper; never used to choose the main configuration from test results.

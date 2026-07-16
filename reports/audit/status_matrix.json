@@ -1,0 +1,66 @@
+{
+  "requirements": [
+    {
+      "evidence": [
+        "reports/experiment_matrix.md"
+      ],
+      "id": "gpu_e00_pilot",
+      "remaining": "Requires access to the target 3xA800 runtime and model/data paths.",
+      "requirement": "Run E00 single-GPU LoRA/CovRA pilot on A800 and record memory/batch/steps.",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "evidence": [
+        "src/dico/gora.py",
+        "src/dico/trainer.py",
+        "configs/dico/gora_public_r8.yaml",
+        "tests/unit/test_gora_aligned.py",
+        "tests/unit/test_gora_trainer_integration.py"
+      ],
+      "id": "GoRA-public",
+      "remaining": "Direct gradient/allocation/init semantics are CPU/tiny verified against locked commit; A800 E00 and unavailable official final benchmark scripts remain unresolved.",
+      "requirement": "Official GoRA-public baseline wrapper/protocol is verified separately from GoRA-BM.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/baselines.py",
+        "reports/baseline_status.md"
+      ],
+      "id": "EVA",
+      "remaining": "Need official implementation/version and budget matching details.",
+      "requirement": "EVA baseline wrapper/protocol is available and budget-audited.",
+      "status": "BLOCKED_BY_UNRESOLVED_PROTOCOL"
+    },
+    {
+      "evidence": [
+        "src/dico/adalora.py",
+        "configs/dico/adalora_r8.yaml",
+        "src/dico/baselines.py",
+        "tests/unit/test_adalora.py",
+        "tests/unit/test_adalora_trainer_integration.py"
+      ],
+      "id": "AdaLoRA",
+      "remaining": "Official commit semantics are covered by CPU/tiny tests; GPU E01 run is still required.",
+      "requirement": "AdaLoRA baseline is implemented under the shared protocol.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    },
+    {
+      "evidence": [
+        "src/dico/mtbench_local.py",
+        "scripts/mtbench_local_judge.py",
+        "tests/unit/test_mtbench_local.py"
+      ],
+      "id": "MTBench-local executor",
+      "remaining": "Run scripts/mtbench_local_judge.py on real MTBench answer artifacts with the configured local judge before reporting scores.",
+      "requirement": "Local MTBench judge actually scores answer sets with locked judge config.",
+      "status": "IMPLEMENTED_NOT_GPU_RUN"
+    }
+  ],
+  "requirements_by_status": {
+    "BLOCKED_BY_UNRESOLVED_PROTOCOL": 1,
+    "IMPLEMENTED_NOT_GPU_RUN": 3,
+    "NOT_EXECUTED": 1
+  },
+  "title": "Status Matrix"
+}

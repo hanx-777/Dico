@@ -8,7 +8,7 @@
 - 增加预算双口径：paramcount 是公平比较主口径，ranksum 仅作辅助诊断。
 - 增加 multi-seed 主实验脚本：`scripts/run_all_multiseed.sh`，默认 `SEEDS="42 43 44"`。
 - 增加 LoRA eta98 baseline：`lora_r4_eta98` / `lora_r8_eta98`，active paramcount ratio 控制在 `[0.97, 0.98]`。
-- 增加 r8 ablation 配置：no relaxation、eta100、answer full、random at budget。
+- 增加 r8 ablation 配置：no relaxation、eta100、answer full、random at budget、PreDynamic move20。
 - 增加 evidence relaxation 顶层报告，显式记录 rank beyond selected evidence 的比例。
 - 增加训练中轻量 loss-only eval：只写 `train_log.jsonl(event=mid_eval_loss)`，不做 generation，不写 `eval_log.jsonl`。
 - cache compatibility 现在记录完整不兼容原因 list，同时保留旧的单字段 alias。
@@ -20,6 +20,8 @@
 
 - `lora`：uniform active rank baseline。
 - `dico_pre`：训练前使用 DiCo calibration / atom evidence 进行一次 rank preallocation。
+- `dico_dynamic`：从 uniform rank 开始，训练过程中按 score 移动 rank。
+- `dico_predynamic`：先 DiCo preallocation，再做较小幅度 dynamic rank movement。
 
 当前主线不是 sparse DiCo，而是 **DiCo-98 budget-fair preallocation**：
 
@@ -27,7 +29,7 @@
 0.98 * target_budget_paramcount <= actual_budget_paramcount <= target_budget_paramcount
 ```
 
-对 `dico_pre`，`trainer.py` 不再用通用 `BudgetManager.repair(...)` 覆盖 DiCo allocator 输出。trainer 只做预算校验和 diagnostics 记录。
+对 `dico_pre` / `dico_predynamic`，`trainer.py` 不再用通用 `BudgetManager.repair(...)` 覆盖 DiCo allocator 输出。trainer 只做预算校验和 diagnostics 记录。
 
 ## 2. 预算口径
 
@@ -74,6 +76,10 @@ audit 的公平区间判断统一使用 `budget_ratio_paramcount`。
 | `lora_r8` | `lora` | 8 | uniform | 否 |
 | `dico_pre_r4` | `dico_pre` | 4 | DiCo-98 | 否 |
 | `dico_pre_r8` | `dico_pre` | 8 | DiCo-98 | 否 |
+| `dico_dynamic_r4` | `dico_dynamic` | 4 | uniform | 是，`move_ratio=0.20` |
+| `dico_dynamic_r8` | `dico_dynamic` | 8 | uniform | 是，`move_ratio=0.20` |
+| `dico_predynamic_r4` | `dico_predynamic` | 4 | DiCo-98 | 是，`move_ratio=0.10` |
+| `dico_predynamic_r8` | `dico_predynamic` | 8 | DiCo-98 | 是，`move_ratio=0.10` |
 
 额外 baseline：
 
@@ -86,6 +92,7 @@ audit 的公平区间判断统一使用 `budget_ratio_paramcount`。
 - `configs/experiments/ablations/dico_pre_r8_eta100.yaml`
 - `configs/experiments/ablations/dico_pre_r8_answer_full.yaml`
 - `configs/experiments/ablations/dico_pre_r8_random.yaml`
+- `configs/experiments/ablations/dico_predynamic_r8_move20.yaml`
 
 ## 4. 单实验流程
 
@@ -122,51 +129,23 @@ load config
 ```yaml
 preallocation:
   atom_mode: svd
-  allocation_method: directional_budgeted
+  allocation_method: coverage_evidence_weighted
   aggregation_mode: weighted_log
   eta: 0.98
   allow_rank_beyond_selected_evidence: true
+  rounding_method: budget_aware_next_atom
   use_soft_tail: true
+  lambda_next: 1.0
   use_cost_aware_allocation: true
-  rank_allocator:
-    atom_to_rank: marginal_curve
-    smoothing: layer_diffusion
-    utility:
-      align_gamma: 1.0
-      use_log1p: true
-      type_normalization: median
-    marginal_curve:
-      decay: sqrt
-      geometric_lambda: 0.75
-    prototype_bundle:
-      similarity_threshold: 0.8
-      residual_weight: 0.25
-    soft_slot:
-      temperature: 1.0
-      slot_decay: 0.15
-    cost_beta: 0.5
-    budget_guardrails:
-      max_rank_per_module: null
-      layer_cap_multiplier: 1.8
-      type_cap_multiplier: 2.0
-      type_budget_bounds: null
-    layer_diffusion:
-      kernel: [0.25, 0.50, 0.25]
-    concentration_penalty:
-      lambda: 0.02
 ```
 
 关键点：
 
-- DiCo allocator 自己负责预算公平分配，并保证 `actual_budget_paramcount <= target_budget_paramcount`。
-- `rank_allocator` 从 SVD atom logs 之后开始工作，不改变 upstream direction extraction、signed response profiling 或 coverage certification。
-- atom-to-rank 轴定义 atom evidence 如何映射为可购买 rank：`marginal_curve` 汇总每个模块的边际曲线，`prototype_bundle` 将相似 response profile 合并为 bundle，`soft_slot` 将 atom 支持分布到有 precedence 的 rank slot；`legacy_atom_purchase` 保留旧版 atom 直购行为。
-- smoothing 轴定义最终贪心选择时如何调节集中度或结构先验：`layer_diffusion` 在同类型相邻 layer 之间扩散边际证据，`budget_guardrails` 施加模块、layer、type cap，`concentration_penalty` 以软 HHI penalty 降低过度集中；`none` 用于关闭平滑。
-- 默认组合为 `marginal_curve + layer_diffusion`；legacy baseline 为 `legacy_atom_purchase + none`。
+- DiCo allocator 自己负责预算公平分配。
 - `rank_allocation_initial.json` 保存 DiCo allocator 原始输出。
-- `dico_pre` 的 `rank_allocation_final.json` 与 initial allocation 一致。
+- 无 dynamic 的 `dico_pre`，`rank_allocation_final.json` 与 initial allocation 一致。
+- `dico_predynamic` 的 reference 使用未被 generic repair 改写的 DiCo allocation。
 - 如果 DiCo allocation 低于 eta，不由 trainer repair，只记录 warning。
-- preallocation cache context 包含完整 `preallocation.rank_allocator` 配置；只要 atom-to-rank、smoothing 或其子参数发生变化，旧 cache 会被判定为不兼容并重新构建。
 
 ## 6. Evidence Relaxation
 
@@ -271,6 +250,7 @@ audit 会检查：
 - budget interval。
 - DiCo-Pre 是否使用 `[eta, 1.0]` paramcount ratio。
 - LoRA eta98 是否使用 `[0.97, 0.98]` paramcount ratio。
+- dynamic adjustment 文件与 step。
 - evaluation/prediction 行数。
 - cache compatibility diagnostics。
 - evidence relaxation warning。
@@ -294,7 +274,7 @@ masked_lora_state.pt
 
 其中：
 
-- `train_log.jsonl`：训练 step 与 mid loss eval。
+- `train_log.jsonl`：训练 step、dynamic adjustment、mid loss eval。
 - `eval_log.jsonl`：只写最终 `event=final_eval`。
 - `masked_lora_state.pt`：只保存 LoRA A/B 和 rank mask，不保存 optimizer state。
 - `budget.json`：最终 budget 口径和 policy diagnostics。

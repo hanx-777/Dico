@@ -1,0 +1,72 @@
+{
+  "manifests": [
+    {
+      "checks": [
+        {
+          "id": "required_fields",
+          "message": "core manifest fields are present",
+          "status": "PASS"
+        },
+        {
+          "id": "config_hash",
+          "message": "resolved config SHA256 matches file contents",
+          "status": "PASS"
+        },
+        {
+          "id": "batch_semantics",
+          "message": "world_size=1, global_batch_size=64",
+          "status": "PASS"
+        },
+        {
+          "id": "precision_and_lora",
+          "message": "adapter dtype/dropout/target modules match protocol",
+          "status": "PASS"
+        },
+        {
+          "id": "model_revision_status",
+          "message": "model_revision_status=UNRESOLVED, tokenizer_revision_status=UNRESOLVED",
+          "status": "PASS"
+        },
+        {
+          "id": "budget_consistency",
+          "message": "budget, parameter counts, and module totals agree",
+          "status": "PASS"
+        },
+        {
+          "id": "parameter_metrics",
+          "message": "baseline parameter-metric contract is present and consistent",
+          "status": "PASS"
+        },
+        {
+          "id": "optimizer_state_estimate",
+          "message": "optimizer-state estimate is consistent with trainable params",
+          "status": "PASS"
+        },
+        {
+          "id": "calibration_selection",
+          "message": "num_selected_samples=2, selection_hash verified",
+          "status": "PASS"
+        },
+        {
+          "id": "artifact_hashes",
+          "message": "all recorded artifact paths, SHA256 values, sizes, and row counts match",
+          "status": "PASS"
+        },
+        {
+          "id": "prediction_required_fields",
+          "message": "prediction JSONL rows contain their required fields",
+          "status": "PASS"
+        }
+      ],
+      "experiment_name": "covra_seed42",
+      "path": "/private/var/folders/7c/zjd_853d07j55m6qt1vgv50c0000gn/T/pytest-of-lxw/pytest-92/test_validate_run_manifest_acc2/run/run_manifest.json",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "failed_checks": 0,
+    "status": "PASS",
+    "total_checks": 11,
+    "validated_manifests": 1
+  }
+}

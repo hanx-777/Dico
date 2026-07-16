@@ -83,12 +83,16 @@ paths are overridden, record the replacement paths and sample counts.
 Unless explicitly overridden, `outputs/` and `outputs/preallocations/` should be
 inside `/ai/lxw/lxw/dico_rank_experiments`.
 
-| Experiment | Method | Rank | Init | OK |
-| --- | --- | ---: | --- | --- |
-| lora_r4 | lora | 4 | uniform | |
-| lora_r8 | lora | 8 | uniform | |
-| dico_pre_r4 | dico_pre | 4 | dico_pre | |
-| dico_pre_r8 | dico_pre | 8 | dico_pre | |
+| Experiment | Method | Rank | Init | Dynamic | Move Ratio | OK |
+| --- | --- | ---: | --- | --- | ---: | --- |
+| lora_r4 | lora | 4 | uniform | false | 0 | |
+| lora_r8 | lora | 8 | uniform | false | 0 | |
+| dico_pre_r4 | dico_pre | 4 | dico_pre | false | 0 | |
+| dico_pre_r8 | dico_pre | 8 | dico_pre | false | 0 | |
+| dico_dynamic_r4 | dico_dynamic | 4 | uniform | true | 0.20 | |
+| dico_dynamic_r8 | dico_dynamic | 8 | uniform | true | 0.20 | |
+| dico_predynamic_r4 | dico_predynamic | 4 | dico_pre | true | 0.10 | |
+| dico_predynamic_r8 | dico_predynamic | 8 | dico_pre | true | 0.10 | |
 
 ## Budget Audit
 
@@ -100,6 +104,10 @@ For each experiment, inspect `budget.json`.
 | lora_r8 | | | | |
 | dico_pre_r4 | | | | |
 | dico_pre_r8 | | | | |
+| dico_dynamic_r4 | | | | |
+| dico_dynamic_r8 | | | | |
+| dico_predynamic_r4 | | | | |
+| dico_predynamic_r8 | | | | |
 
 Acceptance preference: `actual_budget <= target_budget`, `over_budget` is absent or false, and `budget_error_ratio <= 0.01`.
 If `over_budget: true` appears, rank lower bounds or stale metadata made the budget infeasible and the run should not be treated as a fair comparison without explanation.
@@ -111,15 +119,18 @@ Check:
 - `rank_allocation_initial.json`
 - `rank_allocation_final.json`
 - `rank_history.csv`
+- `dynamic_adjustments.jsonl`
 
 Questions:
 
-- Does DiCo-Pre keep final allocation equal to initial allocation?
+- Is DiCo-Dynamic initialized uniformly?
+- Does DiCo-PreDynamic include `rank_distance_from_preallocation`?
+- Are dynamic adjustments limited to configured 20%, 40%, 60% thresholds?
 - Do final ranks remain within `r_min` and `r_max`?
 
 ## Preallocation Audit
 
-Check `outputs/preallocations/*.json` and DiCo-Pre `rank_allocation_initial.json`.
+Check `outputs/preallocations/*.json` and DiCo-Pre / DiCo-PreDynamic `rank_allocation_initial.json`.
 
 Required fields:
 

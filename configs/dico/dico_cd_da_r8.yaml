@@ -1,0 +1,9 @@
+inherits: covra_reference_base.yaml
+
+experiment_name: dico_cd_da_r8_protocol_aligned
+method: dico_cd_da
+rank: 8
+dico:
+  version: cd_da
+  init:
+    mode: direction_anchored
